@@ -8,7 +8,7 @@
 | Section | 7A |
 | Project Title | NutriLens - AI Based Food Recognition and Nutrition Analysis System |
 | Team Leader | Md. Arafat Hossen |
-| GitHub Repository Link | Add your GitHub repository link here |
+| GitHub Repository Link | (https://github.com/Tamal-11/CSE4104-7A-T03-NutriLens.git) |
 
 ## Team Members and Student IDs
 
@@ -51,7 +51,7 @@ The system will also provide a basic health analysis, such as whether a food is 
 | Frontend | React, Vite, TypeScript, Tailwind CSS |
 | Backend | Supabase, Deno-based Edge Functions, RESTful APIs |
 | Database | PostgreSQL |
-| AI / Machine Learning | CNN, TensorFlow / Keras, OpenCV |
+| AI / Machine Learning | YOLOv8n, MobileNetV3, ShuffelNet, EfficientNet-lite |
 | API and Tools | Nutrition API for food data analysis |
 
 ## Project Folder Structure
