@@ -8,7 +8,7 @@
 | Section | 7A |
 | Project Title | NutriLens - AI Based Food Recognition and Nutrition Analysis System |
 | Team Leader | Md. Arafat Hossen |
-| GitHub Repository Link | (https://github.com/Tamal-11/CSE4104-7A-T03-NutriLens.git) |
+| GitHub Repository Link | https://github.com/Tamal-11/cse4104-7a-t03-nutrilens.git |
 
 ## Team Members and Student IDs
 
