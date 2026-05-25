@@ -1,0 +1,9 @@
+project_id = "cse4104-7a-t03-nutrilens"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+
+[functions]
+enabled = true

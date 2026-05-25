@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+
+# Environment files
+.env
+.env.local
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# AI model artifacts
+ai-model/models/*.h5
+ai-model/models/*.keras
+ai-model/models/*.pt
+ai-model/models/*.onnx
+ai-model/data/raw/*
+ai-model/data/processed/*
+!ai-model/data/raw/.gitkeep
+!ai-model/data/processed/.gitkeep
+
+# Supabase
+.supabase/
+
+# Build output
+dist/
+build/
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
