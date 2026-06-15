@@ -57,6 +57,8 @@ README.md
 - [ER diagram](D:\Stuff\cse4104-7a-t03-nutrilens\diagrams\er_diagram.md)
 - [Use case diagram](D:\Stuff\cse4104-7a-t03-nutrilens\diagrams\use_case_diagram.md)
 - [Activity diagram](D:\Stuff\cse4104-7a-t03-nutrilens\diagrams\activity_diagram.md)
+- [AI Diagram]
+(D:\Stuff\cse4104-7a-t03-nutrilens\diagrams\ai_diagram.md)
 
 ## Planned backend APIs
 
