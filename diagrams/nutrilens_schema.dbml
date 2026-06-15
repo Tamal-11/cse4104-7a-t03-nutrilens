@@ -1,0 +1,71 @@
+Table user_profiles {
+  id uuid [pk, ref: > auth_users.id]
+  full_name text [not null]
+  email text [not null, unique]
+  age int
+  gender text
+  height_cm numeric
+  weight_kg numeric
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table food_images {
+  id uuid [pk]
+  user_id uuid [not null, ref: > user_profiles.id]
+  file_name text [not null]
+  storage_path text [not null, unique]
+  public_url text
+  mime_type text [not null]
+  size_bytes bigint
+  meal_type text
+  notes text
+  uploaded_at timestamptz [not null]
+}
+
+Table nutrition_catalog {
+  id uuid [pk]
+  food_name text [not null, unique]
+  category text
+  serving_size text [not null]
+  calories numeric
+  protein numeric
+  carbohydrates numeric
+  fats numeric
+  fiber numeric
+  vitamins jsonb
+  minerals jsonb
+  health_benefits jsonb
+  warnings jsonb
+  source_type text [not null]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+}
+
+Table analysis_requests {
+  id uuid [pk]
+  user_id uuid [not null, ref: > user_profiles.id]
+  image_id uuid [not null, ref: > food_images.id]
+  status text [not null]
+  requested_at timestamptz [not null]
+  completed_at timestamptz
+}
+
+Table analysis_results {
+  id uuid [pk]
+  request_id uuid [not null, unique, ref: > analysis_requests.id]
+  matched_catalog_id uuid [ref: > nutrition_catalog.id]
+  predicted_food_name text [not null]
+  confidence_score numeric
+  nutrition_snapshot jsonb [not null]
+  health_insights jsonb [not null]
+  model_name text
+  model_version text
+  is_mock boolean [not null]
+  created_at timestamptz [not null]
+}
+
+Table auth_users {
+  id uuid [pk]
+  email text
+}

@@ -24,13 +24,13 @@ NutriLens - AI Based Food Recognition and Nutrition Analysis System
 
 ## Team Members
 
-| SL | Name | Student ID |
-|---|---|---|
-| 1 | Md. Arafat Hossen | 11230121099 |
-| 2 | Md. Saiful Islam Anik | 11230121086 |
-| 3 | Md. Azizul Haque Rifat | 11230121087 |
-| 4 | Gazi Nafisa Maliat | 11250122046 |
+| SL | Name | Student ID | Role |
+|---|---|---|---|
+| 1 | Md. Arafat Hossen | 11230121099 | Team Leader |
+| 2 | Md. Saiful Islam Anik | 11230121086 | Backend Developer |
+| 3 | Md. Azizul Haque Rifat | 11230121087 | AI Engineer |
+| 4 | Gazi Nafisa Maliat | 11250122046 | Frontend Designer |
 
 ## GitHub Repository Link
 
-Add your GitHub repository link here.
+https://github.com/Tamal-11/cse4104-7a-t03-nutrilens.git

@@ -1,191 +1,83 @@
-# NutriLens - AI Based Food Recognition and Nutrition Analysis System
+# NutriLens
 
-## Team Information
+NutriLens is a food picture app.
+
+User flow is simple:
+
+1. User makes account
+2. User logs in
+3. User uploads food picture
+4. System stores picture
+5. System returns mock food analysis
+6. User sees nutrition and history
+
+## Team
 
 | Field | Information |
 |---|---|
-| Official Team Name | CSE4104-7A-T03 |
-| Section | 7A |
+| Team Name | CSE4104-7A-T03 |
 | Project Title | NutriLens - AI Based Food Recognition and Nutrition Analysis System |
-| Team Leader | Md. Arafat Hossen |
-| GitHub Repository Link | https://github.com/Tamal-11/cse4104-7a-t03-nutrilens.git |
+| GitHub | https://github.com/Tamal-11/cse4104-7a-t03-nutrilens.git |
 
-## Team Members and Student IDs
+## Stack
 
-| SL | Member Name | Student ID | Role |
-|---|---|---|---|
-| 1 | Md. Arafat Hossen | 11230121099 | Team Leader |
-| 2 | Md. Saiful Islam Anik | 11230121086 | Backend Developer |
-| 3 | Md. Azizul Haque Rifat | 11230121087 | AI Engneer |
-| 4 | Gazi Nafisa Maliat | 11250122046 | Frontend Designer |
-
-## Project Description
-
-NutriLens is an AI-based food analysis system where users can upload or capture a picture of a food item and receive detailed nutritional information. The system will identify the food from the image and provide estimated values for calories, proteins, carbohydrates, fats, vitamins, minerals, and other useful health information.
-
-The system will also provide a basic health analysis, such as whether a food is generally healthy or unhealthy, possible health benefits, and warnings about side effects or risks from excessive consumption.
-
-## Proposed Features
-
-- User can upload or capture a food image.
-- AI model identifies the food item from the image.
-- System shows food prediction with confidence score.
-- System provides estimated nutrition values:
-  - Calories
-  - Protein
-  - Carbohydrates
-  - Fats
-  - Fiber
-  - Vitamins
-  - Minerals
-- System explains possible health benefits.
-- System warns about possible side effects from excessive consumption.
-- User can view previous food analysis history.
-- Admin or developer can update food and nutrition data.
-- API can connect with external nutrition data providers.
-
-## Technology Stack
-
-| Area | Technology |
+| Part | Tool |
 |---|---|
 | Frontend | React, Vite, TypeScript, Tailwind CSS |
-| Backend | Supabase, Deno-based Edge Functions, RESTful APIs |
-| Database | PostgreSQL |
-| AI / Machine Learning | YOLOv8n, MobileNetV3, ShuffelNet, EfficientNet-lite |
-| API and Tools | Nutrition API for food data analysis |
+| Backend | Supabase Edge Functions |
+| Database | Supabase PostgreSQL |
+| Storage | Supabase Storage |
+| Auth | Supabase Auth through custom Edge Function APIs |
+| AI | Mock data now, real AI later |
 
-## Project Folder Structure
-
-```text
-CSE4104-7A-T03_NutriLens/
-├── README.md
-├── .gitignore
-├── .env.example
-├── docs/
-│   ├── project_overview.md
-│   ├── team_info.md
-│   ├── api_design.md
-│   └── database_design.md
-├── frontend/
-│   ├── package.json
-│   ├── index.html
-│   ├── vite.config.ts
-│   ├── tailwind.config.js
-│   ├── postcss.config.js
-│   └── src/
-│       ├── main.tsx
-│       ├── App.tsx
-│       ├── components/
-│       ├── pages/
-│       ├── services/
-│       ├── types/
-│       └── styles/
-├── supabase/
-│   ├── config.toml
-│   ├── functions/
-│   │   ├── analyze-food/
-│   │   ├── nutrition-lookup/
-│   │   └── health-insights/
-│   └── migrations/
-├── ai-model/
-│   ├── README.md
-│   ├── requirements.txt
-│   ├── notebooks/
-│   ├── src/
-│   ├── data/
-│   └── models/
-└── tests/
-```
-
-## How the System Works
-
-1. User uploads a food image from the frontend.
-2. Image is sent to the backend API.
-3. AI model processes the image and predicts the food name.
-4. Backend fetches nutrition information from database or nutrition API.
-5. System calculates estimated nutrition values.
-6. System generates health benefits and side effect warnings.
-7. Result is displayed to the user.
-
-## Installation and Setup
-
-### Frontend Setup
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-### Supabase Edge Function Setup
-
-```bash
-cd supabase
-supabase start
-supabase functions serve analyze-food
-```
-
-### AI Model Setup
-
-```bash
-cd ai-model
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python src/predict.py
-```
-
-## API Endpoints Draft
-
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/analyze-food` | Upload image and get food prediction with nutrition |
-| GET | `/nutrition-lookup` | Get nutrition data by food name |
-| POST | `/health-insights` | Generate benefits and side effect warnings |
-
-## Expected Output Example
-
-```json
-{
-  "food_name": "Apple",
-  "confidence": 0.94,
-  "serving_size": "100g",
-  "nutrition": {
-    "calories": "52 kcal",
-    "protein": "0.3 g",
-    "carbohydrates": "14 g",
-    "fats": "0.2 g",
-    "vitamins": ["Vitamin C", "Vitamin K"],
-    "minerals": ["Potassium", "Calcium"]
-  },
-  "health_benefits": [
-    "Supports digestion because it contains fiber",
-    "Provides antioxidants",
-    "Can be a healthy low-calorie snack"
-  ],
-  "possible_side_effects": [
-    "Excess consumption may cause bloating",
-    "People with blood sugar problems should control portion size"
-  ]
-}
-```
-
-## Important Note
-
-Nutrition values generated by the system are estimated values. This project is not a replacement for professional medical or diet advice. Users with health conditions should consult a qualified doctor or nutritionist.
-
-## File Naming Convention
-
-Official files should follow the required naming convention.
-
-Examples:
+## Repo shape
 
 ```text
-CSE4104-7A-T03_Proposal.pdf
-CSE4104-7A-T03_TeamInfo.pdf
-CSE4104-7A-T03_InitialProjectStructure.zip
+frontend/
+backend/
+supabase/
+docs/
+diagrams/
+ai/
+tests/
+README.md
 ```
 
-## Current Status
+## Important planning docs
 
-Initial project structure created. Next steps are frontend UI development, Supabase backend function implementation, AI model training, nutrition API integration, and testing.
+- [System design document](D:\Stuff\cse4104-7a-t03-nutrilens\docs\system_design_document.md)
+- [API design](D:\Stuff\cse4104-7a-t03-nutrilens\docs\api_design.md)
+- [Database design](D:\Stuff\cse4104-7a-t03-nutrilens\docs\database_design.md)
+- [AI integration workflow](D:\Stuff\cse4104-7a-t03-nutrilens\docs\ai_integration_workflow.md)
+- [Supabase backend planning](D:\Stuff\cse4104-7a-t03-nutrilens\supabase\README.md)
+
+## Diagrams
+
+- [System architecture](D:\Stuff\cse4104-7a-t03-nutrilens\diagrams\system_architecture.md)
+- [ER diagram](D:\Stuff\cse4104-7a-t03-nutrilens\diagrams\er_diagram.md)
+- [Use case diagram](D:\Stuff\cse4104-7a-t03-nutrilens\diagrams\use_case_diagram.md)
+- [Activity diagram](D:\Stuff\cse4104-7a-t03-nutrilens\diagrams\activity_diagram.md)
+
+## Planned backend APIs
+
+| Method | Path |
+|---|---|
+| POST | `/functions/v1/auth-register` |
+| POST | `/functions/v1/auth-login` |
+| POST | `/functions/v1/auth-logout` |
+| GET | `/functions/v1/auth-me` |
+| PUT | `/functions/v1/profile` |
+| POST | `/functions/v1/upload-food-image` |
+| POST | `/functions/v1/analyze-food` |
+| GET | `/functions/v1/analysis-history` |
+| GET | `/functions/v1/analysis-history/:analysisId` |
+
+## Current status
+
+Planning phase only.
+
+- Diagrams ready
+- API structure ready
+- Database plan ready
+- Migration SQL drafted
+- Real endpoints not built yet
