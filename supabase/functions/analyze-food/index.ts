@@ -1,11 +1,13 @@
-import { serve } from "https://deno.land/std/http/server.ts";
+import { corsHeaders } from "../_shared/cors.ts";
+import { json, methodNotAllowed } from "../_shared/http.ts";
 
-serve(async (req) => {
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { "Content-Type": "application/json" },
-    });
+    return methodNotAllowed(["POST", "OPTIONS"]);
   }
 
   // TODO:
@@ -38,7 +40,5 @@ serve(async (req) => {
     ],
   };
 
-  return new Response(JSON.stringify(result), {
-    headers: { "Content-Type": "application/json" },
-  });
+  return json(result);
 });

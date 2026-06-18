@@ -74,10 +74,11 @@ README.md
 
 ## Current status
 
-Planning phase only.
+Auth path is now built in Supabase Edge Functions.
 
-- Diagrams ready
-- API structure ready
-- Database plan ready
-- Migration SQL drafted
-- Real endpoints not built yet
+- `auth-register` ready
+- `auth-login` ready
+- `auth-logout` ready
+- `auth-me` ready
+- profile auto-create + RLS migration added
+- food upload and history flow still mock / not finished

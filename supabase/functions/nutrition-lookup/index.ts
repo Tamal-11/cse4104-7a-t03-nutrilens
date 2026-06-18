@@ -1,6 +1,15 @@
-import { serve } from "https://deno.land/std/http/server.ts";
+import { corsHeaders } from "../_shared/cors.ts";
+import { json, methodNotAllowed } from "../_shared/http.ts";
 
-serve(async (req) => {
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (req.method !== "GET") {
+    return methodNotAllowed(["GET", "OPTIONS"]);
+  }
+
   const url = new URL(req.url);
   const food = url.searchParams.get("food") ?? "unknown";
 
@@ -16,7 +25,5 @@ serve(async (req) => {
     minerals: ["Potassium"],
   };
 
-  return new Response(JSON.stringify(nutrition), {
-    headers: { "Content-Type": "application/json" },
-  });
+  return json(nutrition);
 });

@@ -1,4 +1,4 @@
-# Supabase Backend Planning
+# Supabase Backend
 
 This folder is for backend planning with Supabase.
 
@@ -20,7 +20,7 @@ So flow will be:
 3. Edge Function returns clean REST response
 4. Frontend stores token and uses it in later requests
 
-## Planned Edge Function endpoints
+## Edge Function endpoints
 
 Base path:
 
@@ -79,7 +79,13 @@ Authorization: Bearer <access_token>
 Content-Type: multipart/form-data
 ```
 
-## Planned database objects
+## Required secrets for functions
+
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+## Database objects
 
 - `user_profiles`
 - `food_images`
@@ -88,7 +94,12 @@ Content-Type: multipart/form-data
 - `analysis_results`
 - Storage bucket: `food-images`
 
-## Planned migration commands
+Auth flow also uses:
+
+- trigger on `auth.users` to auto-create `user_profiles`
+- row-level security so each user only sees own rows
+
+## Run commands
 
 ### 1. Login to Supabase CLI
 
@@ -102,45 +113,53 @@ supabase login
 supabase link --project-ref your-project-ref
 ```
 
-### 3. Create new migration file
-
-```bash
-supabase migration new planning_schema_update
-```
-
-### 4. Apply migrations to local Supabase
+### 3. Apply migrations to local Supabase
 
 ```bash
 supabase db reset
 ```
 
-### 5. Push migrations to remote Supabase project
+### 4. Push migrations to remote Supabase project
 
 ```bash
 supabase db push
 ```
 
-### 6. Pull remote schema if team changed it online
+### 5. Pull remote schema if team changed it online
 
 ```bash
 supabase db pull
 ```
 
-### 7. Serve Edge Functions locally later
+### 6. Serve Edge Functions locally
 
 ```bash
 supabase functions serve
 ```
 
-## Development order
+## Auth user flow
 
-1. Finalize schema
-2. Run migration
-3. Create auth functions
-4. Create upload function
-5. Create mock analyze function
-6. Connect frontend to these endpoints
+1. User sends `email`, `password`, `fullName` to `/functions/v1/auth-register`
+2. Supabase Auth makes account
+3. DB trigger auto-creates `user_profiles` row
+4. User logs in through `/functions/v1/auth-login`
+5. Frontend stores `accessToken`
+6. Frontend sends `Authorization: Bearer <token>` to `/functions/v1/auth-me` and other protected routes
+7. Frontend calls `/functions/v1/auth-logout` and clears local token
 
-## Planning note
+## Current note
 
-For this phase, no function implementation is required. This README only fixes backend shape, API path plan, and database migration flow.
+Built now:
+
+- `auth-register`
+- `auth-login`
+- `auth-logout`
+- `auth-me`
+- `002_auth_profile_rls.sql`
+
+Still not built:
+
+- `profile`
+- `upload-food-image`
+- `analysis-history`
+- final non-mock analyze flow
