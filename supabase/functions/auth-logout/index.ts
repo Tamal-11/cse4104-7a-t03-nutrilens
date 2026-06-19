@@ -1,10 +1,15 @@
 import { corsHeaders } from "../_shared/cors.ts";
+import { getEndpointHelpByKey, isHelpPath } from "../_shared/help.ts";
 import { getBearerToken, json, methodNotAllowed } from "../_shared/http.ts";
 import { createAdminClient } from "../_shared/supabase.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (isHelpPath(req)) {
+    return getEndpointHelpByKey("auth-logout");
   }
 
   if (req.method !== "POST") {

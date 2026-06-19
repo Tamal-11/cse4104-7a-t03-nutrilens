@@ -1,9 +1,14 @@
 import { corsHeaders } from "../_shared/cors.ts";
+import { getEndpointHelpByKey, isHelpPath } from "../_shared/help.ts";
 import { json, methodNotAllowed } from "../_shared/http.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (isHelpPath(req)) {
+    return getEndpointHelpByKey("health-insights");
   }
 
   if (req.method !== "GET") {

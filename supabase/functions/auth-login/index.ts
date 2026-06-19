@@ -1,4 +1,5 @@
 import { corsHeaders } from "../_shared/cors.ts";
+import { getEndpointHelpByKey, isHelpPath } from "../_shared/help.ts";
 import { json, methodNotAllowed, readJson } from "../_shared/http.ts";
 import { createAnonClient } from "../_shared/supabase.ts";
 
@@ -10,6 +11,10 @@ type LoginBody = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (isHelpPath(req)) {
+    return getEndpointHelpByKey("auth-login");
   }
 
   if (req.method !== "POST") {
