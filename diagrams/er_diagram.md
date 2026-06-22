@@ -2,22 +2,22 @@
 
 ```mermaid
 erDiagram
-    AUTH_USERS ||--|| USER_PROFILES : owns
+    NEON_AUTH_USERS ||--|| USER_PROFILES : owns
     USER_PROFILES ||--o{ FOOD_IMAGES : uploads
     USER_PROFILES ||--o{ ANALYSIS_REQUESTS : creates
     FOOD_IMAGES ||--o{ ANALYSIS_REQUESTS : used_in
     ANALYSIS_REQUESTS ||--|| ANALYSIS_RESULTS : produces
     NUTRITION_CATALOG ||--o{ ANALYSIS_RESULTS : matched_by
 
-    AUTH_USERS {
+    NEON_AUTH_USERS {
         uuid id PK
         string email
+        string name
     }
 
     USER_PROFILES {
-        uuid id PK
+        uuid user_id PK
         string full_name
-        string email
         int age
         string gender
         numeric height_cm
@@ -30,8 +30,8 @@ erDiagram
         uuid id PK
         uuid user_id FK
         string file_name
-        string storage_path
-        string public_url
+        string object_key
+        string image_url
         string mime_type
         bigint size_bytes
         string meal_type

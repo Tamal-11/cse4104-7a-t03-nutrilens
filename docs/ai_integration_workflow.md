@@ -5,7 +5,7 @@ AI is planned, not connected yet.
 ## Why AI is needed
 
 - User gives food picture, not food name
-- AI will help guess what food is in the image
+- AI will guess what food is in the image
 - System can then show nutrition fast
 
 ## Planned AI service
@@ -13,26 +13,28 @@ AI is planned, not connected yet.
 - Current phase: mock data only
 - Future plan: food image classification model
 - Possible model source:
-  - Custom model hosted by team
-  - External AI API later if needed
+  - team-hosted model
+  - external AI API later if needed
 
 ## Current planning flow
 
 1. User uploads food image
-2. Frontend sends image to custom upload endpoint
-3. Backend stores image in Supabase Storage
-4. Frontend sends `imageId` to analyze endpoint
-5. Analyze endpoint returns mock food result
-6. Frontend shows food name, nutrition, and health notes
+2. Frontend sends image to Worker upload route
+3. Worker stores file in R2
+4. Worker saves image metadata in Neon PostgreSQL
+5. Frontend sends `imageId` to analyze route
+6. Analyze route returns mock food result
+7. Frontend shows food name, nutrition, and health notes
 
 ## Future AI flow
 
 1. User uploads food image
-2. Edge Function gets image path
-3. Backend sends image to AI model
+2. Worker gets image file from R2
+3. Worker sends image to AI model
 4. AI model returns predicted food and confidence
-5. Backend matches food with nutrition data
-6. Backend sends final result to frontend
+5. Worker matches food with nutrition data
+6. Worker saves final result
+7. Worker sends final result to frontend
 
 ## AI input
 
