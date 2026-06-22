@@ -1,6 +1,20 @@
-import { serve } from "https://deno.land/std/http/server.ts";
+import { corsHeaders } from "../_shared/cors.ts";
+import { getEndpointHelpByKey, isHelpPath } from "../_shared/help.ts";
+import { json, methodNotAllowed } from "../_shared/http.ts";
 
-serve(async (_req) => {
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  if (isHelpPath(req)) {
+    return getEndpointHelpByKey("health-insights");
+  }
+
+  if (req.method !== "GET") {
+    return methodNotAllowed(["GET", "OPTIONS"]);
+  }
+
   const insights = {
     health_benefits: [
       "May provide useful nutrients depending on food type",
@@ -12,7 +26,5 @@ serve(async (_req) => {
     ],
   };
 
-  return new Response(JSON.stringify(insights), {
-    headers: { "Content-Type": "application/json" },
-  });
+  return json(insights);
 });

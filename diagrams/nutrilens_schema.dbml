@@ -1,7 +1,6 @@
 Table user_profiles {
-  id uuid [pk, ref: > auth_users.id]
-  full_name text [not null]
-  email text [not null, unique]
+  user_id uuid [pk, ref: > neon_auth_users.id]
+  full_name text
   age int
   gender text
   height_cm numeric
@@ -12,10 +11,10 @@ Table user_profiles {
 
 Table food_images {
   id uuid [pk]
-  user_id uuid [not null, ref: > user_profiles.id]
+  user_id uuid [not null, ref: > user_profiles.user_id]
   file_name text [not null]
-  storage_path text [not null, unique]
-  public_url text
+  object_key text [not null, unique]
+  image_url text
   mime_type text [not null]
   size_bytes bigint
   meal_type text
@@ -44,7 +43,7 @@ Table nutrition_catalog {
 
 Table analysis_requests {
   id uuid [pk]
-  user_id uuid [not null, ref: > user_profiles.id]
+  user_id uuid [not null, ref: > user_profiles.user_id]
   image_id uuid [not null, ref: > food_images.id]
   status text [not null]
   requested_at timestamptz [not null]
@@ -65,7 +64,8 @@ Table analysis_results {
   created_at timestamptz [not null]
 }
 
-Table auth_users {
+Table neon_auth_users {
   id uuid [pk]
   email text
+  name text
 }

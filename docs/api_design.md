@@ -1,40 +1,42 @@
 # API Design
 
-This is planning only. No endpoint is implemented yet.
+This is target design only. No full Neon + Worker backend is implemented yet.
 
-Base path:
+## Route split
 
-```text
-/functions/v1
-```
+Two doors:
+
+1. Neon Auth handles login door
+2. Cloudflare Worker handles app data door
 
 ## Auth APIs
+
+Base URL:
+
+```text
+{NEON_AUTH_URL}/api/auth
+```
+
+These are managed by Neon Auth, not by Hono routes we write.
 
 ### 1. Register User
 
 ```text
-POST /functions/v1/auth-register
+POST {NEON_AUTH_URL}/api/auth/sign-up/email
 ```
 
 Purpose:
-- Create account with email and password
-- Create matching profile row after auth user is created
 
-Headers:
-
-```text
-Content-Type: application/json
-```
+- Make account with email and password
+- Start user session after sign-up if auth settings allow it
 
 Request body:
 
 ```json
 {
-  "fullName": "Saiful Islam",
   "email": "saiful@example.com",
   "password": "StrongPass123!",
-  "age": 23,
-  "gender": "male"
+  "name": "Saiful Islam"
 }
 ```
 
@@ -42,11 +44,11 @@ Success response:
 
 ```json
 {
-  "success": true,
-  "message": "User registered successfully.",
-  "data": {
-    "userId": "uuid",
-    "email": "saiful@example.com"
+  "token": "session-token-or-cookie-managed-by-sdk",
+  "user": {
+    "id": "uuid",
+    "email": "saiful@example.com",
+    "name": "Saiful Islam"
   }
 }
 ```
@@ -54,18 +56,13 @@ Success response:
 ### 2. Login User
 
 ```text
-POST /functions/v1/auth-login
+POST {NEON_AUTH_URL}/api/auth/sign-in/email
 ```
 
 Purpose:
-- Verify email and password
-- Return access token and refresh token
 
-Headers:
-
-```text
-Content-Type: application/json
-```
+- Check email and password
+- Start session
 
 Request body:
 
@@ -80,91 +77,80 @@ Success response:
 
 ```json
 {
-  "success": true,
-  "message": "Login successful.",
-  "data": {
-    "accessToken": "jwt-token",
-    "refreshToken": "refresh-token",
-    "user": {
-      "id": "uuid",
-      "email": "saiful@example.com",
-      "fullName": "Saiful Islam"
-    }
-  }
-}
-```
-
-### 3. Logout User
-
-```text
-POST /functions/v1/auth-logout
-```
-
-Purpose:
-- Invalidate current session on backend side
-
-Headers:
-
-```text
-Authorization: Bearer <access_token>
-Content-Type: application/json
-```
-
-Request body:
-
-```json
-{}
-```
-
-Success response:
-
-```json
-{
-  "success": true,
-  "message": "Logout successful."
-}
-```
-
-### 4. Get Current User
-
-```text
-GET /functions/v1/auth-me
-```
-
-Purpose:
-- Check session from frontend without Supabase client library
-
-Headers:
-
-```text
-Authorization: Bearer <access_token>
-```
-
-Success response:
-
-```json
-{
-  "success": true,
-  "data": {
+  "token": "jwt-or-session-managed-by-sdk",
+  "user": {
     "id": "uuid",
     "email": "saiful@example.com",
-    "fullName": "Saiful Islam",
-    "age": 23,
-    "gender": "male"
+    "name": "Saiful Islam"
   }
 }
 ```
 
-## Profile APIs
+### 3. Get Current Session
+
+```text
+GET {NEON_AUTH_URL}/api/auth/get-session
+```
+
+Purpose:
+
+- Check if user is still logged in
+- Read current session user
+
+Success response:
+
+```json
+{
+  "session": {
+    "userId": "uuid"
+  },
+  "user": {
+    "id": "uuid",
+    "email": "saiful@example.com",
+    "name": "Saiful Islam"
+  }
+}
+```
+
+### 4. Logout User
+
+```text
+POST {NEON_AUTH_URL}/api/auth/sign-out
+```
+
+Purpose:
+
+- End current session
+
+Success response:
+
+```json
+{
+  "success": true
+}
+```
+
+## App APIs
+
+Worker base path:
+
+```text
+/api/v1
+```
+
+All app APIs below are planned in Cloudflare Worker with Hono.
+
+Protected routes expect logged-in user.
 
 ### 5. Update Profile
 
 ```text
-PUT /functions/v1/profile
+PUT /api/v1/profile
 ```
 
 Purpose:
-- Update user profile details
+
+- Save user profile details used by the app
 
 Headers:
 
@@ -194,17 +180,16 @@ Success response:
 }
 ```
 
-## Upload APIs
-
 ### 6. Upload Food Image
 
 ```text
-POST /functions/v1/upload-food-image
+POST /api/v1/upload-food-image
 ```
 
 Purpose:
-- Upload image file to Supabase Storage
-- Save file metadata in database
+
+- Save image file in R2
+- Save image metadata in Neon PostgreSQL
 
 Headers:
 
@@ -229,24 +214,23 @@ Success response:
   "message": "Image uploaded successfully.",
   "data": {
     "imageId": "uuid",
-    "storagePath": "food-images/user-id/file-name.jpg",
-    "publicUrl": "https://project.supabase.co/storage/v1/object/public/food-images/..."
+    "objectKey": "food-images/user-id/file-name.jpg",
+    "imageUrl": "https://pub-example.r2.dev/food-images/user-id/file-name.jpg"
   }
 }
 ```
 
-## Analysis APIs
-
 ### 7. Analyze Food Image
 
 ```text
-POST /functions/v1/analyze-food
+POST /api/v1/analyze-food
 ```
 
 Purpose:
-- Use mock data for now
-- Create one analysis request row
-- Return predicted food, nutrition, and health notes
+
+- Make one analysis job row
+- Return mock result now
+- Keep shape ready for real AI later
 
 Headers:
 
@@ -298,11 +282,12 @@ Success response:
 ### 8. Get Analysis History
 
 ```text
-GET /functions/v1/analysis-history
+GET /api/v1/analysis-history
 ```
 
 Purpose:
-- Show all past uploads and analysis results for logged-in user
+
+- Show all saved results for current user
 
 Headers:
 
@@ -320,8 +305,8 @@ Success response:
       "analysisId": "uuid",
       "foodName": "Apple",
       "confidence": 0.94,
-      "imageUrl": "https://project.supabase.co/storage/...",
-      "createdAt": "2026-06-15T10:00:00Z",
+      "imageUrl": "https://pub-example.r2.dev/food-images/user-id/file-name.jpg",
+      "createdAt": "2026-06-22T10:00:00Z",
       "isMock": true
     }
   ]
@@ -331,11 +316,12 @@ Success response:
 ### 9. Get Single Analysis Details
 
 ```text
-GET /functions/v1/analysis-history/:analysisId
+GET /api/v1/analysis-history/:analysisId
 ```
 
 Purpose:
-- Show one saved analysis result
+
+- Show one saved result
 
 Headers:
 
@@ -364,7 +350,7 @@ Success response:
     "warnings": [
       "Do not overeat"
     ],
-    "createdAt": "2026-06-15T10:00:00Z"
+    "createdAt": "2026-06-22T10:00:00Z"
   }
 }
 ```

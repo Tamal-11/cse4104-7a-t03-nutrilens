@@ -2,14 +2,14 @@
 
 NutriLens is a food picture app.
 
-User flow is simple:
+User flow:
 
 1. User makes account
 2. User logs in
 3. User uploads food picture
-4. System stores picture
-5. System returns mock food analysis
-6. User sees nutrition and history
+4. System saves picture
+5. System runs mock analysis now
+6. User sees nutrition result and history
 
 ## Team
 
@@ -19,15 +19,15 @@ User flow is simple:
 | Project Title | NutriLens - AI Based Food Recognition and Nutrition Analysis System |
 | GitHub | https://github.com/Tamal-11/cse4104-7a-t03-nutrilens.git |
 
-## Stack
+## Current backend direction
 
 | Part | Tool |
 |---|---|
 | Frontend | React, Vite, TypeScript, Tailwind CSS |
-| Backend | Supabase Edge Functions |
-| Database | Supabase PostgreSQL |
-| Storage | Supabase Storage |
-| Auth | Supabase Auth through custom Edge Function APIs |
+| API layer | Cloudflare Worker + Hono |
+| Database | Neon PostgreSQL |
+| Auth | Neon Auth built on Better Auth |
+| File storage | Cloudflare R2 |
 | AI | Mock data now, real AI later |
 
 ## Repo shape
@@ -35,21 +35,21 @@ User flow is simple:
 ```text
 frontend/
 backend/
-supabase/
 docs/
 diagrams/
+supabase/    # legacy folder, not current plan
 ai/
 tests/
 README.md
 ```
 
-## Important planning docs
+## Backend docs
 
+- [Backend platform note](D:\Stuff\cse4104-7a-t03-nutrilens\backend\README.md)
 - [System design document](D:\Stuff\cse4104-7a-t03-nutrilens\docs\system_design_document.md)
 - [API design](D:\Stuff\cse4104-7a-t03-nutrilens\docs\api_design.md)
 - [Database design](D:\Stuff\cse4104-7a-t03-nutrilens\docs\database_design.md)
 - [AI integration workflow](D:\Stuff\cse4104-7a-t03-nutrilens\docs\ai_integration_workflow.md)
-- [Supabase backend planning](D:\Stuff\cse4104-7a-t03-nutrilens\supabase\README.md)
 
 ## Diagrams
 
@@ -60,26 +60,48 @@ README.md
 - [AI Diagram]
 (D:\Stuff\cse4104-7a-t03-nutrilens\diagrams\ai_diagram.md)
 
-## Planned backend APIs
+## App API paths
+
+Worker base path:
+
+```text
+/api/v1
+```
+
+Main app routes:
 
 | Method | Path |
 |---|---|
-| POST | `/functions/v1/auth-register` |
-| POST | `/functions/v1/auth-login` |
-| POST | `/functions/v1/auth-logout` |
-| GET | `/functions/v1/auth-me` |
-| PUT | `/functions/v1/profile` |
-| POST | `/functions/v1/upload-food-image` |
-| POST | `/functions/v1/analyze-food` |
-| GET | `/functions/v1/analysis-history` |
-| GET | `/functions/v1/analysis-history/:analysisId` |
+| PUT | `/api/v1/profile` |
+| POST | `/api/v1/upload-food-image` |
+| POST | `/api/v1/analyze-food` |
+| GET | `/api/v1/analysis-history` |
+| GET | `/api/v1/analysis-history/:analysisId` |
 
-## Current status
+## Auth paths
 
-Planning phase only.
+Auth is not planned inside the Worker.
 
-- Diagrams ready
-- API structure ready
-- Database plan ready
-- Migration SQL drafted
-- Real endpoints not built yet
+Frontend will use Neon Auth at:
+
+```text
+{NEON_AUTH_URL}/api/auth/*
+```
+
+Main auth actions:
+
+- sign up
+- sign in
+- get session
+- sign out
+
+## Current note
+
+Docs now follow the target backend plan:
+
+- Neon PostgreSQL
+- Neon Auth (Better Auth)
+- Cloudflare Worker with Hono
+- Cloudflare R2 for image files
+
+Legacy Supabase files still exist in this repo, but they are old path, not source of truth.

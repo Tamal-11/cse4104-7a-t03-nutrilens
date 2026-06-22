@@ -3,22 +3,22 @@
 ```mermaid
 flowchart TD
     A[User on Web App] --> B[React Frontend]
-    B --> C[Supabase Edge Functions REST API]
-    C --> D[Supabase Auth]
-    C --> E[Supabase PostgreSQL]
-    C --> F[Supabase Storage]
-    C --> G[Mock Analysis Layer]
+    B --> C[Neon Auth]
+    B --> D[Cloudflare Worker API]
+    D --> E[Neon PostgreSQL]
+    D --> F[Cloudflare R2]
+    D --> G[Mock Analysis Layer]
     G -. future .-> H[AI Model Service]
 
     subgraph Frontend
       B
     end
 
-    subgraph Backend
+    subgraph Managed Auth
       C
     end
 
-    subgraph Supabase
+    subgraph App Backend
       D
       E
       F
@@ -32,10 +32,10 @@ flowchart TD
 
 ## User flow
 
-1. User signs up or logs in from frontend
-2. Frontend calls Edge Function auth endpoints
+1. User signs up or logs in with Neon Auth
+2. Frontend keeps session
 3. User uploads food image
-4. Edge Function stores file in Storage and metadata in database
+4. Worker stores file in R2 and metadata in Neon
 5. Frontend asks for analysis using image id
-6. Backend returns mock nutrition result now
+6. Worker returns mock nutrition result now
 7. Future version will call AI model before final response

@@ -7,3 +7,12 @@ schemas = ["public"]
 
 [functions]
 enabled = true
+
+[functions.auth-register]
+verify_jwt = false
+
+[functions.auth-login]
+verify_jwt = false
+
+[functions.help]
+verify_jwt = false
