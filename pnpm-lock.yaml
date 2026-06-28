@@ -13,6 +13,9 @@ importers:
       '@neondatabase/serverless':
         specifier: latest
         version: 1.1.0
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
       hono:
         specifier: latest
         version: 4.12.27
@@ -707,6 +710,10 @@ packages:
   detect-libc@2.1.2:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
+
+  dotenv@16.6.1:
+    resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
+    engines: {node: '>=12'}
 
   electron-to-chromium@1.5.379:
     resolution: {integrity: sha512-v/qV5aV5EUA2pGilzUCq5/eyOloZAqDZBu9UMBIzgPpLlprjSR6zswsWBTv0KpqxLGUAZEwhO95ZCt7srymNVA==}
@@ -1448,6 +1455,8 @@ snapshots:
   csstype@3.2.3: {}
 
   detect-libc@2.1.2: {}
+
+  dotenv@16.6.1: {}
 
   electron-to-chromium@1.5.379: {}
 

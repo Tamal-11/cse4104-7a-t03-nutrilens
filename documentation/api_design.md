@@ -4,25 +4,23 @@ This is target design only. No full Neon + Worker backend is implemented yet.
 
 ## Route split
 
-Two doors:
-
-1. Neon Auth handles login door
-2. Cloudflare Worker handles app data door
+Cloudflare Worker is the only public backend. It proxies authentication to Neon
+Auth and handles application data routes.
 
 ## Auth APIs
 
 Base URL:
 
 ```text
-{NEON_AUTH_URL}/api/auth
+/api/auth
 ```
 
-These are managed by Neon Auth, not by Hono routes we write.
+These Hono routes proxy requests to the private `NEON_AUTH_URL` binding.
 
 ### 1. Register User
 
 ```text
-POST {NEON_AUTH_URL}/api/auth/sign-up/email
+POST /api/auth/sign-up/email
 ```
 
 Purpose:
@@ -56,7 +54,7 @@ Success response:
 ### 2. Login User
 
 ```text
-POST {NEON_AUTH_URL}/api/auth/sign-in/email
+POST /api/auth/sign-in/email
 ```
 
 Purpose:
@@ -89,7 +87,7 @@ Success response:
 ### 3. Get Current Session
 
 ```text
-GET {NEON_AUTH_URL}/api/auth/get-session
+GET /api/auth/get-session
 ```
 
 Purpose:
@@ -115,7 +113,7 @@ Success response:
 ### 4. Logout User
 
 ```text
-POST {NEON_AUTH_URL}/api/auth/sign-out
+POST /api/auth/sign-out
 ```
 
 Purpose:

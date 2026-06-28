@@ -36,9 +36,56 @@ app.get("/", (c) =>
   c.json({
     name: "NutriLens API",
     basePath: "/api/v1",
-    auth: "Use Neon Auth /api/auth routes, then call Worker app routes with the active session.",
+    auth: "Use /api/auth routes. The Worker proxies authentication to Neon Auth.",
   }),
 );
+
+app.all("/api/auth/*", async (c) => {
+  if (!c.env.NEON_AUTH_URL) {
+    return c.json({ success: false, message: "Neon Auth is not configured." }, 500);
+  }
+
+  const authPath = c.req.path.slice("/api/auth".length);
+  const target = new URL(`${c.env.NEON_AUTH_URL.replace(/\/+$/, "")}${authPath}`);
+  target.search = new URL(c.req.url).search;
+
+  const upstreamRequest = new Request(target, c.req.raw);
+  const upstreamResponse = await fetch(upstreamRequest, { redirect: "manual" });
+  const headers = new Headers(upstreamResponse.headers);
+  const cookies = getSetCookies(upstreamResponse.headers);
+
+  headers.delete("set-cookie");
+  for (const cookie of cookies) {
+    headers.append("set-cookie", cookie.replace(/;\s*Domain=[^;]+/gi, ""));
+  }
+
+  const location = headers.get("location");
+  if (location?.startsWith(c.env.NEON_AUTH_URL)) {
+    headers.set(
+      "location",
+      location.replace(c.env.NEON_AUTH_URL.replace(/\/+$/, ""), "/api/auth"),
+    );
+  }
+
+  return new Response(upstreamResponse.body, {
+    status: upstreamResponse.status,
+    statusText: upstreamResponse.statusText,
+    headers,
+  });
+});
+
+function getSetCookies(headers: Headers): string[] {
+  const cookieHeaders = headers as Headers & {
+    getSetCookie?: () => string[];
+    getAll?: (name: string) => string[];
+  };
+
+  return (
+    cookieHeaders.getSetCookie?.() ??
+    cookieHeaders.getAll?.("Set-Cookie") ??
+    (headers.get("Set-Cookie") ? [headers.get("Set-Cookie")!] : [])
+  );
+}
 
 app.use("/api/v1/*", async (c, next) => {
   const user = await getCurrentUser(c.req.raw, c.env.NEON_AUTH_URL);
@@ -362,7 +409,7 @@ async function getCurrentUser(request: Request, neonAuthUrl: string): Promise<Au
   if (authorization) headers.set("Authorization", authorization);
   if (cookie) headers.set("Cookie", cookie);
 
-  const response = await fetch(`${neonAuthUrl.replace(/\/$/, "")}/api/auth/get-session`, {
+  const response = await fetch(`${neonAuthUrl.replace(/\/+$/, "")}/get-session`, {
     method: "GET",
     headers,
   });

@@ -3,9 +3,11 @@
   "private": true,
   "packageManager": "pnpm@10.25.0",
   "scripts": {
-    "frontend:dev": "corepack pnpm --dir frontend dev",
-    "frontend:build": "corepack pnpm --dir frontend build",
-    "backend:dev": "corepack pnpm --dir backend dev",
-    "backend:typecheck": "corepack pnpm --dir backend typecheck"
+    "dev:frontend": "corepack pnpm --dir frontend dev",
+    "dev:backend": "corepack pnpm --dir backend dev",
+    "deploy": "corepack pnpm --dir backend deploy",
+    "db:migrate": "corepack pnpm --dir backend db:migrate",
+    "build:frontend": "corepack pnpm --dir frontend build",
+    "typecheck:backend": "corepack pnpm --dir backend typecheck"
   }
 }

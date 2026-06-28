@@ -8,4 +8,3 @@ bucket_name = "food-images"
 
 [vars]
 R2_PUBLIC_BASE_URL = ""
-NEON_AUTH_URL = ""

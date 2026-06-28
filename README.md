@@ -37,8 +37,9 @@ Use pnpm from the repo root:
 ```bash
 corepack enable
 pnpm install
-pnpm frontend:build
-pnpm backend:typecheck
+pnpm dev:backend
+pnpm db:migrate
+pnpm deploy
 ```
 
 ## Repo shape
@@ -94,7 +95,7 @@ Auth is not planned inside the Worker.
 Frontend will use Neon Auth at:
 
 ```text
-{NEON_AUTH_URL}/api/auth/*
+{NEON_AUTH_URL}/*
 ```
 
 Main auth actions:

@@ -5,12 +5,14 @@
   "packageManager": "pnpm@10.25.0",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --env-file ../.env",
     "deploy": "wrangler deploy",
+    "db:migrate": "node scripts/migrate.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@neondatabase/serverless": "latest",
+    "dotenv": "^16.6.1",
     "hono": "latest"
   },
   "devDependencies": {

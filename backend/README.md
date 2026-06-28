@@ -27,52 +27,60 @@ backend/
 
 ## Environment
 
-Set Worker secrets/vars:
+Copy `.env.example` to `.env` in the repository root and set:
 
 ```text
 DATABASE_URL=postgresql://...
-NEON_AUTH_URL=https://your-neon-auth-host
+NEON_AUTH_URL=https://your-neon-auth-endpoint
 R2_PUBLIC_BASE_URL=https://your-public-r2-domain
 ```
 
-`DATABASE_URL` should be stored as a Wrangler secret:
+Use the auth endpoint shown by Neon for `NEON_AUTH_URL`. The Worker validates
+each protected request by calling that endpoint's `/get-session` route.
+
+Store the database connection string and auth endpoint as Worker secrets before
+the first deployment:
 
 ```bash
-pnpm exec wrangler secret put DATABASE_URL
+pnpm --dir backend exec wrangler secret put DATABASE_URL
+pnpm --dir backend exec wrangler secret put NEON_AUTH_URL
 ```
 
-`NEON_AUTH_URL` and `R2_PUBLIC_BASE_URL` can stay in `wrangler.toml` during development, but production values should be configured in Cloudflare.
+Set `R2_PUBLIC_BASE_URL` in `wrangler.toml` or in the Cloudflare dashboard.
+`pnpm dev:backend` loads local Worker bindings directly from the root `.env`.
 
 ## Database Setup
 
-Run the SQL files in order against the Neon database:
+From the repository root, run all pending SQL migrations against Neon:
 
-```text
-migrations/001_neon_app_schema.sql
-migrations/002_profile_triggers_and_seed.sql
+```bash
+pnpm db:migrate
 ```
 
-The app schema stores profile, image, analysis request, analysis result, and mock nutrition catalog rows. Neon Auth owns the login/session tables separately.
+Applied files are recorded in `schema_migrations`. The app schema stores profile,
+image, analysis request, analysis result, and mock nutrition catalog rows. Neon
+Auth owns the login/session tables separately.
 
 ## Auth Flow
 
-Auth routes are handled by Neon Auth, not by the Worker:
+The frontend only calls the Worker. The Worker proxies `/api/auth/*` requests to
+the Neon-provided auth endpoint:
 
 ```text
-POST {NEON_AUTH_URL}/api/auth/sign-up/email
-POST {NEON_AUTH_URL}/api/auth/sign-in/email
-GET  {NEON_AUTH_URL}/api/auth/get-session
-POST {NEON_AUTH_URL}/api/auth/sign-out
+POST /api/auth/sign-up/email
+POST /api/auth/sign-in/email
+GET  /api/auth/get-session
+POST /api/auth/sign-out
 ```
 
-Frontend flow:
+Request flow:
 
-1. Register or sign in through Neon Auth.
-2. Keep the Neon Auth session cookie or token.
-3. Call Worker app routes with `credentials: "include"` when the session cookie is scoped to the Worker API domain, or `Authorization: Bearer <token>` when Neon Auth runs on a separate domain.
-4. The Worker calls `{NEON_AUTH_URL}/api/auth/get-session`.
-5. If the session is valid, the Worker upserts `user_profiles` and runs the requested app route.
-6. If the session is missing or invalid, the Worker returns `401`.
+1. The frontend sends auth requests to the Worker's `/api/auth/*` routes.
+2. The Worker forwards the request to `NEON_AUTH_URL`.
+3. The Worker returns Neon Auth's response and session cookie to the frontend.
+4. The frontend sends that cookie when calling protected `/api/v1/*` routes.
+5. The Worker validates the cookie through `{NEON_AUTH_URL}/get-session`.
+6. A valid session is mapped to `user_profiles`; otherwise the Worker returns `401`.
 
 ## Worker Routes
 
@@ -102,18 +110,14 @@ Install dependencies from the repo root, then run Wrangler:
 
 ```bash
 pnpm install
-pnpm --dir backend dev
+pnpm dev:backend
 ```
 
-For the frontend, set:
+Deploy the Worker from the repository root:
 
-```text
-VITE_API_BASE_URL=http://localhost:8787
+```bash
+pnpm deploy
 ```
 
-The frontend upload helper now calls:
-
-1. `POST /api/v1/upload-food-image`
-2. `POST /api/v1/analyze-food`
-
-Pass the active Neon Auth token into `analyzeFoodImage(file, accessToken)` when the Worker cannot receive the auth cookie directly.
+The Worker is the only public backend boundary. Clients must not call
+`NEON_AUTH_URL` directly.
