@@ -30,6 +30,17 @@ User flow:
 | File storage | Cloudflare R2 |
 | AI | Mock data now, real AI later |
 
+## Package manager
+
+Use pnpm from the repo root:
+
+```bash
+corepack enable
+pnpm install
+pnpm frontend:build
+pnpm backend:typecheck
+```
+
 ## Repo shape
 
 ```text
@@ -37,7 +48,6 @@ frontend/
 backend/
 docs/
 diagrams/
-supabase/    # legacy folder, not current plan
 ai/
 tests/
 README.md
@@ -45,20 +55,19 @@ README.md
 
 ## Backend docs
 
-- [Backend platform note](D:\Stuff\cse4104-7a-t03-nutrilens\backend\README.md)
-- [System design document](D:\Stuff\cse4104-7a-t03-nutrilens\docs\system_design_document.md)
-- [API design](D:\Stuff\cse4104-7a-t03-nutrilens\docs\api_design.md)
-- [Database design](D:\Stuff\cse4104-7a-t03-nutrilens\docs\database_design.md)
-- [AI integration workflow](D:\Stuff\cse4104-7a-t03-nutrilens\docs\ai_integration_workflow.md)
+- [Backend platform note](backend/README.md)
+- [System design document](docs/system_design_document.md)
+- [API design](docs/api_design.md)
+- [Database design](docs/database_design.md)
+- [AI integration workflow](docs/ai_integration_workflow.md)
 
 ## Diagrams
 
-- [System architecture](D:\Stuff\cse4104-7a-t03-nutrilens\diagrams\system_architecture.md)
-- [ER diagram](D:\Stuff\cse4104-7a-t03-nutrilens\diagrams\er_diagram.md)
-- [Use case diagram](D:\Stuff\cse4104-7a-t03-nutrilens\diagrams\use_case_diagram.md)
-- [Activity diagram](D:\Stuff\cse4104-7a-t03-nutrilens\diagrams\activity_diagram.md)
-- [AI Diagram]
-(D:\Stuff\cse4104-7a-t03-nutrilens\diagrams\ai_diagram.md)
+- [System architecture](diagrams/system_architecture.md)
+- [ER diagram](diagrams/er_diagram.md)
+- [Use case diagram](diagrams/use_case_diagram.md)
+- [Activity diagram](diagrams/activity_diagram.md)
+- [AI Diagram](diagrams/ai_diagrams.md)
 
 ## App API paths
 
@@ -104,4 +113,4 @@ Docs now follow the target backend plan:
 - Cloudflare Worker with Hono
 - Cloudflare R2 for image files
 
-Legacy Supabase files still exist in this repo, but they are old path, not source of truth.
+The legacy Supabase folder has been removed. Backend code now lives in `backend/`.

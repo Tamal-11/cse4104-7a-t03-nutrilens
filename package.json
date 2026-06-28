@@ -1,0 +1,11 @@
+{
+  "name": "cse4104-7a-t03-nutrilens",
+  "private": true,
+  "packageManager": "pnpm@10.25.0",
+  "scripts": {
+    "frontend:dev": "corepack pnpm --dir frontend dev",
+    "frontend:build": "corepack pnpm --dir frontend build",
+    "backend:dev": "corepack pnpm --dir backend dev",
+    "backend:typecheck": "corepack pnpm --dir backend typecheck"
+  }
+}

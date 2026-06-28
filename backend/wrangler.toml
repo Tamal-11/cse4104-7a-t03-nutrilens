@@ -1,0 +1,11 @@
+name = "nutrilens-api"
+main = "src/index.ts"
+compatibility_date = "2026-06-26"
+
+[[r2_buckets]]
+binding = "FOOD_IMAGES"
+bucket_name = "food-images"
+
+[vars]
+R2_PUBLIC_BASE_URL = ""
+NEON_AUTH_URL = ""
