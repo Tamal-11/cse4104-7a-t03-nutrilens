@@ -113,6 +113,10 @@ pnpm install
 pnpm dev:backend
 ```
 
+The local API listens at `http://localhost:8787`. Wrangler prints the URL after
+the Workers runtime starts. Local mode does not require a Cloudflare login, but
+authenticated `/api/v1/*` requests still require a valid Neon Auth session.
+
 Deploy the Worker from the repository root:
 
 ```bash

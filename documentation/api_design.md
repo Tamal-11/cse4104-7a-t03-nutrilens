@@ -143,7 +143,7 @@ Protected routes expect logged-in user.
 ### 5. Update Profile
 
 ```text
-PUT /api/v1/profile
+POST /api/v1/profile
 ```
 
 Purpose:

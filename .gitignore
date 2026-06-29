@@ -28,6 +28,7 @@ ai-model/data/processed/*
 # Build output
 dist/
 build/
+.wrangler/
 
 # OS / IDE
 .DS_Store

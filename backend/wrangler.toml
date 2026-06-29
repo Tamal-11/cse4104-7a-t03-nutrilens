@@ -2,6 +2,11 @@ name = "nutrilens-api"
 main = "src/index.ts"
 compatibility_date = "2026-06-26"
 
+[dev]
+ip = "localhost"
+port = 8787
+local_protocol = "http"
+
 [[r2_buckets]]
 binding = "FOOD_IMAGES"
 bucket_name = "food-images"

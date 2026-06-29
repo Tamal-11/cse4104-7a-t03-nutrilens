@@ -1,6 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { endpointDocs, findEndpointDocs } from "./api-docs";
 
 type Env = {
   Bindings: {
@@ -36,20 +37,110 @@ app.get("/", (c) =>
   c.json({
     name: "NutriLens API",
     basePath: "/api/v1",
-    auth: "Use /api/auth routes. The Worker proxies authentication to Neon Auth.",
+    auth: "Use /api/auth/sign-up, /api/auth/sign-in, /api/auth/session, and /api/auth/sign-out.",
+    health: "/health",
+    help: "/help",
   }),
 );
 
-app.all("/api/auth/*", async (c) => {
-  if (!c.env.NEON_AUTH_URL) {
-    return c.json({ success: false, message: "Neon Auth is not configured." }, 500);
+app.get("/health", async (c) => {
+  const startedAt = Date.now();
+
+  try {
+    if (!c.env.DATABASE_URL) {
+      throw new Error("DATABASE_URL is not configured.");
+    }
+
+    const sql = neon(c.env.DATABASE_URL);
+    await sql`select 1 as healthy`;
+
+    return c.json({
+      status: "healthy",
+      server: { status: "up" },
+      database: { status: "up" },
+      responseTimeMs: Date.now() - startedAt,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Database health check failed", error);
+
+    return c.json(
+      {
+        status: "degraded",
+        server: { status: "up" },
+        database: {
+          status: "down",
+          message: error instanceof Error ? error.message : "Database connection failed.",
+        },
+        responseTimeMs: Date.now() - startedAt,
+        timestamp: new Date().toISOString(),
+      },
+      503,
+    );
+  }
+});
+
+app.get("/help", (c) =>
+  c.json({
+    success: true,
+    message: "Use /help/<endpoint-path>?method=<HTTP_METHOD> for detailed documentation.",
+    endpoints: endpointDocs.map(({ method, path, summary, authentication }) => ({
+      method,
+      path,
+      summary,
+      authentication,
+      helpUrl: `/help${path === "/" ? "" : path}?method=${method === "ALL" ? "" : method}`,
+    })),
+  }),
+);
+
+app.get("/help/*", (c) => {
+  const endpointPath = c.req.path.slice("/help".length);
+  const method = c.req.query("method");
+  const matches = findEndpointDocs(endpointPath, method);
+
+  if (matches.length === 0) {
+    return c.json(
+      {
+        success: false,
+        message: "No endpoint documentation was found.",
+        requestedPath: endpointPath,
+        requestedMethod: method ?? null,
+      },
+      404,
+    );
   }
 
-  const authPath = c.req.path.slice("/api/auth".length);
+  return c.json({ success: true, data: matches.length === 1 ? matches[0] : matches });
+});
+
+const authRoutes: Record<string, string> = {
+  "/api/auth/sign-up": "/sign-up/email",
+  "/api/auth/sign-in": "/sign-in/email",
+  "/api/auth/session": "/get-session",
+  "/api/auth/sign-out": "/sign-out",
+};
+
+app.all("/api/auth/*", async (c) => {
+  if (!c.env.NEON_AUTH_URL) {
+    return c.json({ success: false, message: "Authentication service is not configured." }, 500);
+  }
+
+  const authPath = authRoutes[c.req.path] ?? c.req.path.slice("/api/auth".length);
   const target = new URL(`${c.env.NEON_AUTH_URL.replace(/\/+$/, "")}${authPath}`);
   target.search = new URL(c.req.url).search;
 
-  const upstreamRequest = new Request(target, c.req.raw);
+  const upstreamHeaders = new Headers(c.req.raw.headers);
+  if (!upstreamHeaders.has("Origin")) {
+    upstreamHeaders.set("Origin", new URL(c.req.url).origin);
+  }
+
+  const upstreamRequest = new Request(target, {
+    method: c.req.method,
+    headers: upstreamHeaders,
+    body: c.req.raw.body,
+    redirect: "manual",
+  });
   const upstreamResponse = await fetch(upstreamRequest, { redirect: "manual" });
   const headers = new Headers(upstreamResponse.headers);
   const cookies = getSetCookies(upstreamResponse.headers);
@@ -99,7 +190,47 @@ app.use("/api/v1/*", async (c, next) => {
   await next();
 });
 
-app.put("/api/v1/profile", async (c) => {
+app.get("/api/v1/profile", async (c) => {
+  const user = c.get("user");
+  const sql = neon(c.env.DATABASE_URL);
+  const rows = await sql`
+    select
+      user_id,
+      email,
+      full_name,
+      age,
+      gender,
+      height_cm,
+      weight_kg,
+      created_at,
+      updated_at
+    from user_profiles
+    where user_id = ${user.id}
+    limit 1
+  `;
+  const profile = rows[0];
+
+  if (!profile) {
+    return c.json({ success: false, message: "Profile was not found." }, 404);
+  }
+
+  return c.json({
+    success: true,
+    data: {
+      userId: profile.user_id,
+      email: profile.email,
+      fullName: profile.full_name,
+      age: profile.age,
+      gender: profile.gender,
+      heightCm: profile.height_cm === null ? null : Number(profile.height_cm),
+      weightKg: profile.weight_kg === null ? null : Number(profile.weight_kg),
+      createdAt: profile.created_at,
+      updatedAt: profile.updated_at,
+    },
+  });
+});
+
+app.post("/api/v1/profile", async (c) => {
   const user = c.get("user");
   const body = await c.req.json<{
     fullName?: string;
@@ -399,7 +530,7 @@ app.get("/api/v1/health-insights", (c) =>
 
 async function getCurrentUser(request: Request, neonAuthUrl: string): Promise<AuthUser | null> {
   if (!neonAuthUrl) {
-    throw new Error("NEON_AUTH_URL is not configured.");
+    throw new Error("Authentication service is not configured.");
   }
 
   const headers = new Headers();
