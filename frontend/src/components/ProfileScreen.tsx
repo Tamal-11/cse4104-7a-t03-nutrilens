@@ -106,10 +106,10 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
           <div className="w-16 h-16 rounded-full bg-[#daeed0] text-[#3c7224] flex items-center justify-center font-black text-2xl mx-auto shadow-xs border-2 border-white select-none">
             {name ? name.slice(0, 2).toUpperCase() : 'NM'}
           </div>
-          <h4 className="text-base font-extrabold text-neutral-900 mt-2">{name || 'Gazi Nafisa Maliat'}</h4>
-          <p className="text-[11px] text-slate-400 font-medium">{email || 'nafisa.maliat912@gmail.com'}</p>
+          <h4 className="text-base font-extrabold text-neutral-900 mt-2">{name}</h4>
+          <p className="text-[11px] text-slate-400 font-medium">{email}</p>
           
-          {email === 'arafat.cse@nubtk.edu' && (
+          {user.isAdmin && (
             <button
               type="button"
               onClick={() => onNavigate('admin')}

@@ -9,6 +9,7 @@ export interface UserProfile {
   weight: number; // in kg
   healthConditions: string[];
   dietaryPreferences: string[];
+  isAdmin?: boolean;
 }
 
 export interface MacroNutrients {

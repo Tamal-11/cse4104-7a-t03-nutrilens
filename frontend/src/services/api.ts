@@ -1,6 +1,8 @@
 import type {FoodAnalysis, UserProfile} from '../types';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+const apiUrl = (value?: string | null) =>
+  value?.startsWith('/') ? `${API_BASE_URL}${value}` : value || '';
 
 type ApiEnvelope<T> = {success: boolean; data: T; message?: string};
 
@@ -28,6 +30,9 @@ export type ProfileResponse = {
   gender: string | null;
   heightCm: number | null;
   weightKg: number | null;
+  healthConditions: string[];
+  dietaryPreferences: string[];
+  isAdmin: boolean;
 };
 type AnalysisResponse = {
   analysisId: string;
@@ -44,6 +49,9 @@ type AnalysisResponse = {
   };
   healthBenefits?: string[];
   warnings?: string[];
+  suggestions?: string[];
+  explanation?: string;
+  classification?: 'Healthy' | 'Moderate' | 'Unhealthy';
 };
 
 export const api = {
@@ -69,6 +77,8 @@ export const api = {
         gender: profile.gender,
         heightCm: profile.height,
         weightKg: profile.weight,
+        healthConditions: profile.healthConditions,
+        dietaryPreferences: profile.dietaryPreferences,
       }),
     }),
   history: () => request<ApiEnvelope<AnalysisResponse[]>>('/api/v1/analysis-history'),
@@ -87,6 +97,17 @@ export const api = {
     });
     return mapAnalysis({...result.data, imageUrl: upload.data.imageUrl || URL.createObjectURL(file)});
   },
+  adminOverview: () => request<ApiEnvelope<{
+    currentUserId: string;
+    users: import('../types').UserAccount[];
+    stats: import('../types').AdminStats;
+    logs: string[];
+  }>>('/api/v1/admin/overview'),
+  setUserStatus: (id: string, status: 'Active' | 'Suspended') =>
+    request<ApiEnvelope<import('../types').UserAccount>>(`/api/v1/admin/users/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({status}),
+    }),
 };
 
 export function mapProfile(profile: ProfileResponse): UserProfile {
@@ -100,8 +121,9 @@ export function mapProfile(profile: ProfileResponse): UserProfile {
     gender,
     height: profile.heightCm ?? 0,
     weight: profile.weightKg ?? 0,
-    healthConditions: [],
-    dietaryPreferences: [],
+    healthConditions: profile.healthConditions,
+    dietaryPreferences: profile.dietaryPreferences,
+    isAdmin: profile.isAdmin,
   };
 }
 
@@ -112,10 +134,10 @@ export function mapAnalysis(item: AnalysisResponse): FoodAnalysis {
   return {
     id: item.analysisId,
     name: item.foodName,
-    image: item.imageUrl || '',
+    image: apiUrl(item.imageUrl),
     time: item.createdAt ? new Date(item.createdAt).toLocaleString() : 'Just now',
-    isHealthy: nutrition.calories < 600,
-    classification: nutrition.calories >= 800 ? 'Unhealthy' : nutrition.calories >= 600 ? 'Moderate' : 'Healthy',
+    isHealthy: (item.classification || 'Moderate') === 'Healthy',
+    classification: item.classification || 'Moderate',
     macros: {
       calories: nutrition.calories,
       protein: nutrition.protein,
@@ -126,7 +148,7 @@ export function mapAnalysis(item: AnalysisResponse): FoodAnalysis {
     pros: item.healthBenefits || [],
     cons: item.warnings || [],
     warnings: item.warnings || [],
-    suggestions: [],
-    explanation: `${item.foodName} was identified with ${Math.round(item.confidence * 100)}% confidence.`,
+    suggestions: item.suggestions || [],
+    explanation: item.explanation || `${item.foodName} was identified with ${Math.round(item.confidence * 100)}% confidence.`,
   };
 }

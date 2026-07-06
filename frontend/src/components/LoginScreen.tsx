@@ -104,16 +104,6 @@ export default function LoginScreen({ onNavigate, onLoginSuccess }: LoginScreenP
             </button>
           </div>
 
-          {/* Forgot Password link exactly styled right-aligned */}
-          <div className="flex justify-end -mt-1.5">
-            <button
-              type="button"
-              className="text-[11px] font-semibold text-[#599b38] hover:text-[#427429] transition-colors"
-            >
-              Forgot Password?
-            </button>
-          </div>
-
           {/* Login button: Solid black rounded-xl block */}
           <motion.button
             id="btn-login-submit"

@@ -21,7 +21,6 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
   );
   
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
-  const [customFoodName, setCustomFoodName] = useState('');
   const [scanStep, setScanStep] = useState(0);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [uploadedAnalysis, setUploadedAnalysis] = useState<FoodAnalysis | null>(null);
@@ -81,50 +80,23 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
   const handleReset = () => {
     setScanState('upload');
     setUploadedImageUrl(null);
-    setCustomFoodName('');
     setActiveIndex(null);
     setUploadedAnalysis(null);
   };
 
-  // Determine actual food to show (using the selected historical item or default simulated mockup)
-  const currentFood: FoodAnalysis = selectedScan || uploadedAnalysis || {
-    id: 'simulated_chicken_rice',
-    name: customFoodName || 'Chicken Rice',
-    image: '🍗',
-    time: 'Today, 12:45 PM',
-    isHealthy: true,
-    classification: 'Healthy',
-    macros: {
-      calories: 520,
-      protein: 32,
-      carbohydrates: 58,
-      fat: 18,
-      fiber: 4
-    },
-    pros: [
-      'High Protein: Outstanding source of lean poultry protein supporting muscle synthesis.',
-      'Rich Fiber: Crisp cucumber slices help moderate blood glycemic indices.'
-    ],
-    cons: [
-      'High Sodium: Fried chicken seasonings carry heightened salt counts.',
-      'Moderate Saturated Fats: Frying elements add to overall lipid ratios.'
-    ],
-    warnings: [
-      'Elevated Sodium Level: We detected refined sodium elements exceeding 850mg.',
-      'Potential Allergen: Accompanied soy sauces contain gluten.'
-    ],
-    suggestions: [
-      'Ask for grilled meat and keep sauces on the side to restrict lipid retention.',
-      'Drink sufficient water to counteract processed sodium spikes.'
-    ],
-    explanation: 'This classical Chicken Rice plate presents a rich load of highly biological muscle proteins but carries refined grains in the white starch rice. Pairing with the sliced cucumbers stimulates immediate trace dietary fiber absorption, making it a highly energetic workout meal.'
+  const currentFood = selectedScan || uploadedAnalysis;
+  const resultMacros = currentFood?.macros ?? {
+    calories: 0,
+    protein: 0,
+    carbohydrates: 0,
+    fat: 0,
+    fiber: 0,
   };
-
   // Prepare dynamic pie data based on actual shown food macros
   const pieData = [
-    { name: 'Protein', value: currentFood.macros.protein, color: '#4fa829' },
-    { name: 'Carbs', value: currentFood.macros.carbohydrates, color: '#328cf0' },
-    { name: 'Fat', value: currentFood.macros.fat, color: '#f04e32' }
+    { name: 'Protein', value: resultMacros.protein, color: '#4fa829' },
+    { name: 'Carbs', value: resultMacros.carbohydrates, color: '#328cf0' },
+    { name: 'Fat', value: resultMacros.fat, color: '#f04e32' }
   ];
 
   return (
@@ -184,27 +156,6 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
                 />
               </div>
 
-              {/* Demo Quick selector option */}
-              <div className="hidden">
-                <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">Demo Quick Launch</span>
-                <button
-                  onClick={() => {
-                    setCustomFoodName('Chicken Rice');
-                    setScanState('scanning');
-                  }}
-                  className="w-full p-3.5 bg-[#599b38]/10 hover:bg-[#599b38]/20 border border-[#599b38]/30 rounded-xl text-left flex items-center justify-between transition group cursor-pointer"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-2xl">🍗</span>
-                    <div>
-                      <strong className="block text-xs font-bold text-[#2e521b]">Chicken Rice Analysis (Image 4)</strong>
-                      <span className="text-[9px] text-slate-400">Evaluate exactly the macronutrients, pros, and cons mockup</span>
-                    </div>
-                  </div>
-                  <span className="text-xs font-bold text-[#599b38] group-hover:underline">Simulate →</span>
-                </button>
-              </div>
-
             </motion.div>
           )}
 
@@ -230,7 +181,7 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
           )}
 
           {/* STATE 3: RESULTS PRESENTATION (UNIFIED COMPREHENSIVE VIEW!) */}
-          {scanState === 'results' && (
+          {scanState === 'results' && currentFood && (
             <motion.div
               key="results"
               initial={{ opacity: 0, scale: 0.98 }}
@@ -258,7 +209,7 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
               {/* High Quality Food Photo */}
               <div className="w-full h-44 rounded-[20px] overflow-hidden shadow-xs relative bg-white border border-[#e2edd8]">
                 <img 
-                  src={uploadedImageUrl || (currentFood.id.startsWith('p') ? "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80" : "https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&w=600&q=80")}
+                  src={uploadedImageUrl || currentFood.image}
                   alt={currentFood.name}
                   className="w-full h-full object-cover"
                   referrerPolicy="no-referrer"
