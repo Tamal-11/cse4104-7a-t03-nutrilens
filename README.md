@@ -39,8 +39,12 @@ corepack enable
 pnpm install
 pnpm dev:backend
 pnpm db:migrate
-pnpm deploy
+pnpm run deploy
 ```
+
+Use `pnpm run deploy` for the Cloudflare Worker deploy script. Bare
+`pnpm deploy` is pnpm's workspace deploy command and requires a selected
+workspace package plus a target directory.
 
 ## Repo shape
 

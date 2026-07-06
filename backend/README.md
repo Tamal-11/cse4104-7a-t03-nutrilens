@@ -120,8 +120,11 @@ authenticated `/api/v1/*` requests still require a valid Neon Auth session.
 Deploy the Worker from the repository root:
 
 ```bash
-pnpm deploy
+pnpm run deploy
 ```
+
+Use `pnpm run deploy`, not bare `pnpm deploy`. In pnpm 10, `pnpm deploy` is a
+workspace deployment command and does not run this package script.
 
 The Worker is the only public backend boundary. Clients must not call
 `NEON_AUTH_URL` directly.

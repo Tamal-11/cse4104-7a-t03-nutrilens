@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { ChevronLeft, User, Save, Calendar, Shield, Sparkles, LogOut, Download } from 'lucide-react';
+import { Check, ChevronLeft, Loader2, User, Save, Calendar, Shield, Sparkles, LogOut, Download, Share, MoreVertical } from 'lucide-react';
 import { ScreenType, UserProfile } from '../types';
 import { NutriLenseLogo } from './NutriLenseLogo';
 import {api} from '../services/api';
@@ -15,10 +15,29 @@ interface ProfileScreenProps {
   onInstall: () => Promise<boolean>;
 }
 
-const AVAILABLE_DIETS = ['Balanced', 'High Protein', 'Keto', 'Vegan', 'Low Carb', 'Balanced Carb'];
-const AVAILABLE_CONDITIONS = ['None', 'Mild Sodium Sensitivity', 'Lactose Intolerance', 'Diabetes Type 2', 'Hypertension'];
+const AVAILABLE_DIETS = [
+  'Eat Balanced',
+  'More Protein',
+  'Weight Loss',
+  'Less Sugar',
+  'Less Carbs',
+  'Vegetarian',
+];
+const AVAILABLE_CONDITIONS = [
+  'None',
+  'Baby',
+  'Pregnant',
+  'Diabetes',
+  'High Blood Pressure',
+  'Heart Problem',
+  'Milk Allergy',
+];
 
 export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOut, canInstall, installed, onInstall }: ProfileScreenProps) {
+  const isIOS =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = /Android/.test(navigator.userAgent);
   const [name, setName] = useState(user.name);
   const [email] = useState(user.email);
   const [age, setAge] = useState(user.age);
@@ -29,11 +48,15 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
   const [selectedDiets, setSelectedDiets] = useState<string[]>(user.dietaryPreferences);
   const [selectedConditions, setSelectedConditions] = useState<string[]>(user.healthConditions);
   const [showSavedToast, setShowSavedToast] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
   const [error, setError] = useState('');
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     setError('');
+    setIsSaving(true);
     const updated = {
       name,
       email,
@@ -52,6 +75,8 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
       setTimeout(() => setShowSavedToast(false), 1800);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to save the profile.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -127,7 +152,7 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
           {/* Account metrics card */}
           <div className="bg-white rounded-[24px] border border-[#e2edd8] p-4.5 space-y-3">
             <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#558e38] uppercase tracking-wider mb-1">
-              <User className="w-4 h-4 text-[#558e38]" /> Account Coordinates
+              <User className="w-4 h-4 text-[#558e38]" /> Account
             </span>
             
             <div>
@@ -156,7 +181,7 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
           {/* Physical specification card */}
           <div className="bg-white rounded-[24px] border border-[#e2edd8] p-4.5 space-y-3">
             <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#558e38] uppercase tracking-wider mb-1">
-              <Calendar className="w-4 h-4 text-[#558e38]" /> Physical Biometrics
+              <Calendar className="w-4 h-4 text-[#558e38]" /> Body Info
             </span>
 
             <div className="grid grid-cols-2 gap-3">
@@ -208,7 +233,7 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
           {/* Special preferences card */}
           <div className="bg-white rounded-[24px] border border-[#e2edd8] p-4.5 space-y-2">
             <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#558e38] uppercase tracking-wider mb-1">
-              <Sparkles className="w-4 h-4" /> Dietary Targets
+              <Sparkles className="w-4 h-4" /> Food Goals
             </span>
             <div className="flex flex-wrap gap-1.5">
               {AVAILABLE_DIETS.map(diet => {
@@ -234,7 +259,7 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
           {/* Medical parameters card */}
           <div className="bg-white rounded-[24px] border border-[#e2edd8] p-4.5 space-y-2">
             <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#b54a4a] uppercase tracking-wider mb-1">
-              <Shield className="w-4 h-4" /> Health Warnings
+              <Shield className="w-4 h-4" /> Health Notes
             </span>
             <div className="flex flex-wrap gap-1.5">
               {AVAILABLE_CONDITIONS.map(cond => {
@@ -263,15 +288,21 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
               <Download className="w-4 h-4" /> Install NutriLens
             </span>
             <p className="my-2 text-[10px] text-slate-500">
-              {installed ? 'NutriLens is installed on this device.' : 'Install the app for quick access and offline startup.'}
+              {installed ? 'Installed on this device.' : 'Add it to your home screen.'}
             </p>
             <button
               type="button"
-              disabled={!canInstall}
-              onClick={() => void onInstall()}
+              disabled={installed}
+              onClick={() => {
+                if (canInstall) {
+                  void onInstall();
+                  return;
+                }
+                setShowInstallHelp((value) => !value);
+              }}
               className="w-full rounded-xl bg-[#599b38] py-2.5 text-xs font-extrabold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              {installed ? 'App installed' : canInstall ? 'Install app' : 'Install unavailable in this browser'}
+              {installed ? 'Installed' : 'Install'}
             </button>
           </div>
 
@@ -282,10 +313,11 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
             type="submit"
+            disabled={isSaving}
             className="w-full mt-2 py-3.5 bg-[#111311] hover:bg-black text-white font-extrabold text-xs tracking-wider uppercase rounded-xl cursor-pointer shadow-md transition-all flex items-center justify-center gap-2"
           >
-            <Save className="w-4 h-4" />
-            <span>Save Profile Metrics</span>
+            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span>{isSaving ? 'Saving' : 'Save Profile'}</span>
           </motion.button>
 
           {/* Logout Action at the bottom side */}
@@ -298,7 +330,7 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
             className="w-full mt-2 py-3.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-extrabold text-xs tracking-wider uppercase rounded-xl cursor-pointer transition-all flex items-center justify-center gap-2"
           >
             <LogOut className="w-4 h-4 text-rose-600" />
-            <span>Sign Out / Logout</span>
+            <span>Logout</span>
           </motion.button>
         </form>
       </div>
@@ -306,9 +338,41 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
 
       {/* Floating Save Announcement Toast */}
       {showSavedToast && (
-        <div className="fixed top-[15%] left-1/2 transform -translate-x-1/2 p-3 bg-slate-900 text-emerald-400 text-xs font-black rounded-xl shadow-xl flex items-center gap-1.5 z-55">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-          <span>Metrics saved successfully!</span>
+        <div className="fixed top-[15%] left-1/2 transform -translate-x-1/2 px-4 py-3 bg-slate-950 text-white text-xs font-black rounded-2xl shadow-xl flex items-center gap-2 z-55">
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-400 text-slate-950">
+            <Check className="h-4 w-4" />
+          </span>
+          <span>Saved</span>
+        </div>
+      )}
+      {showInstallHelp && !installed && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/35 px-4">
+          <div className="w-full max-w-xs rounded-3xl bg-white p-4 shadow-2xl">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#eef7e8] text-[#599b38]">
+              <Download className="h-6 w-6" />
+            </div>
+            <p className="mt-3 text-center text-sm font-black text-slate-900">Install NutriLens</p>
+            <div className="mt-3 text-[11px] font-bold text-slate-600">
+              {isIOS ? (
+                <div className="flex items-center gap-2 rounded-2xl bg-[#f6fbf2] p-3">
+                  <Share className="h-5 w-5 shrink-0 text-[#599b38]" />
+                  <span>Tap Share, then Add to Home Screen.</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 rounded-2xl bg-[#f6fbf2] p-3">
+                  <MoreVertical className="h-5 w-5 shrink-0 text-[#599b38]" />
+                  <span>{isAndroid ? 'Tap Install app in your browser menu.' : 'Click Install app in your browser menu.'}</span>
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowInstallHelp(false)}
+              className="mt-4 w-full rounded-xl bg-slate-950 py-2.5 text-xs font-extrabold text-white"
+            >
+              OK
+            </button>
+          </div>
         </div>
       )}
     </div>
