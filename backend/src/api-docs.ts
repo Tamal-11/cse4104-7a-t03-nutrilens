@@ -199,12 +199,12 @@ export const endpointDocs: EndpointDoc[] = [
   {
     method: "POST",
     path: "/api/v1/analyze-food",
-    summary: "Run the current mock nutrition analysis for an uploaded image.",
+    summary: "Analyze an uploaded food image using the configured model service.",
     authentication: "session required",
     headers: { "Content-Type": "application/json", Cookie: "Authentication session cookie." },
     payload: { imageId: "uuid (required)" },
     responses: {
-      "200": { success: true, message: "Mock analysis completed.", data: "Analysis result." },
+      "200": { success: true, message: "Analysis completed.", data: "Analysis result." },
       "400": { success: false, message: "imageId is required." },
       "401": { success: false, message: "Authentication required." },
       "404": { success: false, message: "Food image was not found." },
@@ -239,10 +239,10 @@ export const endpointDocs: EndpointDoc[] = [
   {
     method: "GET",
     path: "/api/v1/nutrition-lookup",
-    summary: "Return mock nutrition information for a food name.",
+    summary: "Return stored nutrition information for a food name.",
     authentication: "session required",
     headers: { Cookie: "Authentication session cookie." },
-    queryParameters: { food: "Food name; defaults to Apple." },
+    queryParameters: { food: "Food name (required)." },
     payload: null,
     responses: {
       "200": { success: true, data: "Nutrition information." },
@@ -252,7 +252,7 @@ export const endpointDocs: EndpointDoc[] = [
   {
     method: "GET",
     path: "/api/v1/health-insights",
-    summary: "Return generic mock health benefits and warnings.",
+    summary: "Return stored health benefits and warnings for a food name.",
     authentication: "session required",
     headers: { Cookie: "Authentication session cookie." },
     payload: null,

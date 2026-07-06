@@ -1,241 +1,158 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
-import { 
-  ShieldAlert, Users, Layers, Activity, Cpu, Sparkles, 
-  Search, ToggleLeft, ToggleRight, CheckCircle, RefreshCw, Terminal, Clock 
+import {useCallback, useEffect, useMemo, useState} from 'react';
+import {
+  Activity, ChevronLeft, Clock3, RefreshCw, ScanLine, Search,
+  ShieldCheck, Terminal, ToggleLeft, ToggleRight, Users,
 } from 'lucide-react';
-import { UserAccount, AdminStats } from '../types';
-import { MOCK_USERS, MOCK_ADMIN_STATS } from '../data';
+import type {AdminStats, ScreenType, UserAccount} from '../types';
+import {api} from '../services/api';
+import {NutriLenseLogo} from './NutriLenseLogo';
 
-interface AdminScreenProps {
-  onNavigate: (screen: string) => void;
-}
+export default function AdminScreen({onNavigate}: {onNavigate: (screen: ScreenType) => void}) {
+  const [currentUserId, setCurrentUserId] = useState('');
+  const [users, setUsers] = useState<UserAccount[]>([]);
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [search, setSearch] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState('');
 
-export default function AdminScreen({ onNavigate }: AdminScreenProps) {
-  const [users, setUsers] = useState<UserAccount[]>(MOCK_USERS);
-  const [stats, setStats] = useState<AdminStats>(MOCK_ADMIN_STATS);
-  const [searchTerm, setSearchTerm] = useState('');
-  
-  // Real-time server terminal logs generator
-  const [logs, setLogs] = useState<string[]>([
-    '[SYSTEM] Kernel boot sequence completed successfully at port 3000.',
-    '[SYSTEM] Express dynamic asset rendering middleware mounted.',
-    '[AI_MODEL] Gemini-3.5-Flash ready for image multi-label parsing.',
-    '[SECURITY] CORS filters validated. Ready for remote mobile queries.'
-  ]);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const messages = [
-        `[INFO] Query incoming from device ID mobile_client_${Math.floor(Math.random() * 900) + 100}`,
-        '[AI_MODEL] Pre-loaded image parsed. Saliency values normalized.',
-        `[DATABASE] Appended scan log record #${Math.floor(Math.random() * 5000) + 1200} successfully in 4ms`,
-        '[INFO] Cleaned stale user cache indexes.',
-        `[SYSTEM] Performance check: CPU standard load is ${Math.floor(Math.random() * 15) + 5}%`,
-        `[AI_MODEL] vision-model accuracy validated at 96.4%`
-      ];
-      
-      const newLog = messages[Math.floor(Math.random() * messages.length)];
-      const timestamp = new Date().toLocaleTimeString();
-      setLogs(prev => [`[${timestamp}] ${newLog}`, ...prev.slice(0, 15)]);
-    }, 4500);
-
-    return () => clearInterval(timer);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await api.adminOverview();
+      setCurrentUserId(response.data.currentUserId);
+      setUsers(response.data.users);
+      setStats(response.data.stats);
+      setLogs(response.data.logs);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to load admin data.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const handleToggleStatus = (id: string) => {
-    setUsers(prev => prev.map(u => {
-      if (u.id === id) {
-        const newStatus = u.status === 'Active' ? 'Suspended' : 'Active';
-        return { ...u, status: newStatus };
-      }
-      return u;
-    }));
+  useEffect(() => { void load(); }, [load]);
+
+  const toggleStatus = async (user: UserAccount) => {
+    if (user.id === currentUserId) return;
+    setUpdatingId(user.id);
+    setError('');
+    try {
+      const response = await api.setUserStatus(user.id, user.status === 'Active' ? 'Suspended' : 'Active');
+      setUsers((current) => current.map((item) =>
+        item.id === user.id ? {...response.data, scansCount: item.scansCount} : item,
+      ));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to update this account.');
+    } finally {
+      setUpdatingId('');
+    }
   };
 
-  const handleStatsRefresh = () => {
-    setStats(prev => ({
-      ...prev,
-      totalScans: prev.totalScans + 1,
-      activeUsers24h: prev.activeUsers24h + Math.floor(Math.random() * 3) - 1,
-      averageResponseTime: Number((prev.averageResponseTime + (Math.random() * 0.4 - 0.2)).toFixed(2))
-    }));
-  };
+  const filtered = useMemo(() => users.filter((user) =>
+    `${user.name} ${user.email}`.toLowerCase().includes(search.trim().toLowerCase()),
+  ), [search, users]);
 
-  const filteredUsers = users.filter(u => 
-    u.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const statCards = stats ? [
+    {label: 'Registered users', value: stats.totalUsers, icon: Users},
+    {label: 'Food scans', value: stats.totalScans, icon: ScanLine},
+    {label: 'Active today', value: stats.activeUsers24h, icon: Activity},
+    {label: 'API response', value: `${stats.averageResponseTime}s`, icon: Clock3},
+  ] : [];
 
   return (
-    <div className="flex flex-col h-full bg-slate-900 text-slate-100 font-sans">
-      <div className="max-w-3xl w-full mx-auto flex flex-col flex-1 pb-6">
-        {/* Admin Title Banner */}
-        <div className="p-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ShieldAlert className="w-5 h-5 text-purple-400" />
-          <h2 className="text-sm font-black tracking-wide uppercase text-purple-200">
-            NutriLens Admin Hyper-Console
-          </h2>
-        </div>
-        <span className="text-[10px] bg-emerald-500/20 text-emerald-400 font-bold px-2 py-0.5 rounded-full border border-emerald-500/30 flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span> Live Status
-        </span>
-      </div>
+    <div className="h-full overflow-y-auto bg-[#f2f8ed] text-slate-800">
+      <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col pb-8">
+        <header className="mx-4 mt-3 flex items-center justify-between rounded-[22px] border border-[#e2ebd8]/80 bg-white/95 p-3 shadow-[0_4px_20px_rgba(89,155,56,0.06)]">
+          <button onClick={() => onNavigate('profile')} className="flex items-center gap-1 rounded-xl px-2 py-2 text-xs font-bold text-slate-600 transition hover:bg-[#f2f8ed]">
+            <ChevronLeft className="h-4 w-4"/> Back
+          </button>
+          <NutriLenseLogo size={34} showText textSizeClass="text-base font-extrabold text-slate-900" className="flex-row gap-1.5"/>
+          <button onClick={() => void load()} disabled={loading} aria-label="Refresh admin data" className="rounded-xl p-2 text-[#599b38] transition hover:bg-[#eef7e8] disabled:opacity-50">
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}/>
+          </button>
+        </header>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-5">
-        
-        {/* Core Administrative KPIs */}
-        <div className="grid grid-cols-3 gap-2.5">
-          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-            <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Registered Users</span>
-            <div className="flex items-baseline gap-1 mt-1">
-              <span className="text-xl font-black text-slate-100">{users.length}</span>
-              <span className="text-[9px] text-emerald-400 font-bold">+2 today</span>
-            </div>
-          </div>
-
-          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-            <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Total AI Scans</span>
-            <div className="flex items-baseline gap-1 mt-1">
-              <span className="text-xl font-black text-slate-100">{stats.totalScans}</span>
-              <span className="text-[9px] text-purple-400 font-bold">96% hit</span>
-            </div>
-          </div>
-
-          <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
-            <span className="block text-[9px] text-slate-400 font-bold uppercase tracking-wider">Vision Latency</span>
-            <div className="flex items-baseline gap-1 mt-1">
-              <span className="text-xl font-black text-slate-100">{stats.averageResponseTime}s</span>
-              <span className="text-[9px] text-slate-500 font-medium">avg 1.8s</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Real-time Hardware Metrics Grid */}
-        <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-3.5">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-widest flex items-center gap-1.5">
-              <Cpu className="w-4 h-4 text-purple-400" /> GPU & Engine Analytics
-            </h4>
-            <button 
-              onClick={handleStatsRefresh} 
-              className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
-              title="Refresh engine cache"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <div className="flex justify-between text-[11px] font-mono">
-                <span>Model Load (Accuracy)</span>
-                <span className="text-emerald-400 font-bold">{stats.modelAccuracy}%</span>
-              </div>
-              <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                <div className="bg-emerald-500 h-full w-[96.4%]"></div>
+        <main className="space-y-5 px-4 pt-5">
+          <section>
+            <div className="flex items-center gap-2">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#daeed0] text-[#427429]"><ShieldCheck className="h-5 w-5"/></span>
+              <div>
+                <h1 className="text-xl font-black text-neutral-900">Admin dashboard</h1>
+                <p className="text-[11px] font-medium text-slate-500">Manage NutriLens accounts and monitor live usage.</p>
               </div>
             </div>
+          </section>
 
-            <div className="space-y-1">
-              <div className="flex justify-between text-[11px] font-mono">
-                <span>GPU Core Allocation</span>
-                <span className="text-purple-400 font-bold">42.8%</span>
-              </div>
-              <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                <div className="bg-purple-500 h-full w-[43%] animate-pulse"></div>
-              </div>
-            </div>
-          </div>
-        </div>
+          {error && <p role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">{error}</p>}
 
-        {/* User Administration Block */}
-        <div>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-              <Users className="w-4.5 h-4.5 text-purple-400" /> User Accounts (NUBTK Members)
-            </h3>
-            
-            {/* Search filter bar */}
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 text-slate-500">
-                <Search className="w-3.5 h-3.5" />
-              </span>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                placeholder="Search accounts..."
-                className="pl-8 pr-3 py-1 bg-slate-950 border border-slate-800 rounded-lg outline-none text-xs text-slate-200 placeholder-slate-600 focus:border-purple-500 w-full"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-            {filteredUsers.map((item) => (
-              <div 
-                key={item.id}
-                className="p-3 bg-slate-950 border border-slate-800/80 rounded-xl flex items-center justify-between"
-              >
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-slate-100">{item.name}</span>
-                    <span className={`text-[8px] font-extrabold px-1 py-0.5 rounded ${
-                      item.role === 'Admin' ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'bg-slate-800 text-slate-400'
-                    }`}>
-                      {item.role}
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-slate-500 font-semibold mt-0.5">{item.email}</p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="text-right">
-                    <span className="block text-[10px] text-slate-400 font-bold">{item.scansCount} scans completed</span>
-                    <span className={`text-[9px] font-bold ${
-                      item.status === 'Active' ? 'text-emerald-400' : 'text-rose-400'
-                    }`}>
-                      {item.status}
-                    </span>
-                  </div>
-
-                  <button
-                    onClick={() => handleToggleStatus(item.id)}
-                    className="p-1 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
-                    title={`Change to ${item.status === 'Active' ? 'Suspended' : 'Active'}`}
-                  >
-                    {item.status === 'Active' ? (
-                      <ToggleRight className="w-7 h-7 text-emerald-400" />
-                    ) : (
-                      <ToggleLeft className="w-7 h-7 text-slate-600" />
-                    )}
-                  </button>
-                </div>
+          <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {statCards.map(({label, value, icon: Icon}) => (
+              <div key={label} className="rounded-[20px] border border-[#e2edd8] bg-white p-3.5 shadow-[0_4px_16px_rgba(89,155,56,0.04)]">
+                <Icon className="mb-2 h-4 w-4 text-[#599b38]"/>
+                <strong className="block text-xl font-black text-[#427429]">{value}</strong>
+                <span className="text-[9px] font-bold uppercase tracking-wide text-slate-400">{label}</span>
               </div>
             ))}
-          </div>
-        </div>
+          </section>
 
-        {/* Real-time App Terminal Log files */}
-        <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl space-y-2.5">
-          <h4 className="text-xs font-bold text-slate-300 uppercase tracking-widest flex items-center gap-1.5">
-            <Terminal className="w-4 h-4 text-purple-400 animate-pulse" /> Live System Logs
-          </h4>
-          <div className="bg-slate-900 border border-slate-800 p-3 rounded-lg h-32 overflow-y-auto font-mono text-[9.5px] text-slate-300 leading-normal space-y-1">
-            {logs.map((log, index) => (
-              <div key={index} className="flex gap-2.5 border-b border-slate-800/20 pb-0.5">
-                <span className="text-slate-500 shrink-0 select-none">❯</span>
-                <span className={log.includes('[SYSTEM]') ? 'text-teal-400' : log.includes('[AI_MODEL]') ? ';text-purple-300 font-bold' : log.includes('[SECURITY]') ? 'text-amber-400' : 'text-slate-350'}>
-                  {log}
-                </span>
+          <section className="rounded-[24px] border border-[#e2edd8] bg-white p-4 shadow-[0_4px_16px_rgba(89,155,56,0.03)]">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-[#558e38]"><Users className="h-4 w-4"/>User accounts</h2>
+                <p className="mt-1 text-[10px] text-slate-400">{users.length} registered accounts</p>
               </div>
-            ))}
-          </div>
-        </div>
+              <label className="relative">
+                <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400"/>
+                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search accounts" className="w-full rounded-xl border border-[#dfead7] bg-[#fafff6] py-2 pl-9 pr-3 text-xs font-medium outline-none focus:border-[#599b38] sm:w-56"/>
+              </label>
+            </div>
 
+            <div className="space-y-2">
+              {filtered.map((user) => {
+                const isSelf = user.id === currentUserId;
+                const isUpdating = updatingId === user.id;
+                return (
+                  <div key={user.id} className="flex items-center justify-between gap-3 rounded-2xl border border-[#e8f0e2] bg-[#fbfef9] p-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <strong className="truncate text-xs text-slate-800">{user.name}</strong>
+                        <span className={`rounded-full px-2 py-0.5 text-[8px] font-black uppercase ${user.role === 'Admin' ? 'bg-[#daeed0] text-[#427429]' : 'bg-slate-100 text-slate-500'}`}>{user.role}</span>
+                        {isSelf && <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[8px] font-black uppercase text-amber-700">You</span>}
+                      </div>
+                      <p className="truncate text-[10px] font-medium text-slate-400">{user.email}</p>
+                      <p className="mt-0.5 text-[9px] text-slate-400">{user.scansCount} completed scans</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className={`text-[9px] font-extrabold ${user.status === 'Active' ? 'text-[#599b38]' : 'text-rose-600'}`}>{user.status}</span>
+                      <button
+                        onClick={() => void toggleStatus(user)}
+                        disabled={isSelf || isUpdating}
+                        title={isSelf ? 'You cannot suspend your own account' : `Set account ${user.status === 'Active' ? 'suspended' : 'active'}`}
+                        aria-label={isSelf ? 'Current admin account cannot be suspended' : `Toggle ${user.name} account status`}
+                        className="rounded-xl p-1 transition hover:bg-[#eef7e8] disabled:cursor-not-allowed disabled:opacity-35"
+                      >
+                        {user.status === 'Active' ? <ToggleRight className="h-7 w-7 text-[#599b38]"/> : <ToggleLeft className="h-7 w-7 text-slate-400"/>}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+              {!loading && filtered.length === 0 && <p className="py-10 text-center text-xs font-medium text-slate-400">No accounts found.</p>}
+            </div>
+          </section>
+
+          <section className="rounded-[24px] border border-[#e2edd8] bg-white p-4 shadow-[0_4px_16px_rgba(89,155,56,0.03)]">
+            <h2 className="mb-3 flex items-center gap-2 text-xs font-extrabold uppercase tracking-wider text-[#558e38]"><Terminal className="h-4 w-4"/>Recent system activity</h2>
+            <div className="max-h-44 space-y-2 overflow-y-auto rounded-2xl bg-[#f7fbf4] p-3 font-mono text-[9px] leading-relaxed text-slate-500">
+              {logs.map((log, index) => <p key={`${index}-${log}`} className="border-b border-[#e4eddf] pb-1.5 last:border-0">{log}</p>)}
+              {logs.length === 0 && <p>No activity recorded.</p>}
+            </div>
+          </section>
+        </main>
       </div>
-    </div>
     </div>
   );
 }

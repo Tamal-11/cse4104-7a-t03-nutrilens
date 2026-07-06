@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { Clipboard, Flame, Soup, AlertTriangle, LogOut, User } from 'lucide-react';
+import { Clipboard, Flame, Soup, AlertTriangle, User } from 'lucide-react';
 import { ScreenType, UserProfile, FoodAnalysis } from '../types';
 import { NutriLenseLogo } from './NutriLenseLogo';
 
@@ -16,10 +16,6 @@ export default function DashboardScreen({ user, history, onNavigate, onSelectSca
   const healthyMeals = history.filter((item) => item.isHealthy).length;
   const highCalorieMeals = history.filter((item) => item.macros.calories >= 600).length;
   
-  const handleSignOut = () => {
-    onNavigate('home');
-  };
-
   return (
     <div className="flex flex-col h-full bg-[#f2f8ed] text-slate-800 overflow-y-auto">
       <div className="max-w-3xl w-full mx-auto flex flex-col flex-1 pb-6">

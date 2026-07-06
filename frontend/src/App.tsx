@@ -13,13 +13,13 @@ import AdminScreen from './components/AdminScreen';
 
 // Types & Data Defaults
 import { ScreenType, UserProfile, FoodAnalysis } from './types';
-import { INITIAL_USER } from './data';
+import { EMPTY_USER } from './data';
 import {api, mapAnalysis, mapProfile} from './services/api';
 import {usePwaInstall} from './hooks/usePwaInstall';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('home');
-  const [currentUser, setCurrentUser] = useState<UserProfile>(INITIAL_USER);
+  const [currentUser, setCurrentUser] = useState<UserProfile>(EMPTY_USER);
   const [historyList, setHistoryList] = useState<FoodAnalysis[]>([]);
   const [selectedScanItem, setSelectedScanItem] = useState<FoodAnalysis | null>(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
@@ -28,16 +28,7 @@ export default function App() {
   const loadAccountData = async () => {
     const [profile, history] = await Promise.all([api.profile(), api.history()]);
     setCurrentUser(mapProfile(profile.data));
-    const summaries = await Promise.all(
-      history.data.map(async (item) => {
-        try {
-          return mapAnalysis((await api.analysis(item.analysisId)).data);
-        } catch {
-          return mapAnalysis(item);
-        }
-      }),
-    );
-    setHistoryList(summaries);
+    setHistoryList(history.data.map(mapAnalysis));
   };
 
   useEffect(() => {
