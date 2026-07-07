@@ -1,0 +1,27 @@
+{
+  "name": "nutrilens-ai-node",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.25.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "model:download": "node scripts/download-model.mjs",
+    "model:check": "node scripts/check-model.mjs"
+  },
+  "dependencies": {
+    "@hono/node-server": "latest",
+    "dotenv": "^16.6.1",
+    "hono": "latest",
+    "onnxruntime-node": "^1.27.0",
+    "sharp": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "tsx": "latest",
+    "typescript": "~5.8.2"
+  }
+}

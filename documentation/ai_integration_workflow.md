@@ -1,60 +1,103 @@
 # AI Integration Workflow
 
-AI is planned, not connected yet.
+NutriLens now has a local Node.js ONNX AI integration. The old Python/TensorFlow placeholder has been removed from the active runtime path.
 
-## Why AI is needed
+## Current AI service
 
-- User gives food picture, not food name
-- AI will guess what food is in the image
-- System can then show nutrition fast
+```text
+ai-node/
+```
 
-## Planned AI service
+Runtime:
 
-- Current phase: mock data only
-- Future plan: food image classification model
-- Possible model source:
-  - team-hosted model
-  - external AI API later if needed
+- Node.js
+- ONNX Runtime Node.js binding
+- Food-101 MobileNetV2 ONNX model
+- Local Food-101 labels
+- Local starter nutrition catalog
 
-## Current planning flow
+## Current working flow
 
-1. User uploads food image
-2. Frontend sends image to Worker upload route
-3. Worker stores file in R2
-4. Worker saves image metadata in Neon PostgreSQL
-5. Frontend sends `imageId` to analyze route
-6. Analyze route returns mock food result
-7. Frontend shows food name, nutrition, and health notes
+1. User uploads a food image from the frontend.
+2. Frontend sends the image to `POST /api/v1/upload-food-image`.
+3. Backend stores the file in Cloudflare R2 and metadata in Neon PostgreSQL.
+4. Frontend sends the returned `imageId` to `POST /api/v1/analyze-food`.
+5. Backend reads the image from R2.
+6. Backend sends the image to `AI_MODEL_ENDPOINT`.
+7. Local `ai-node` service runs ONNX inference.
+8. AI service returns food name, confidence, nutrition estimate, health notes, and suggestions.
+9. Backend validates the AI response and saves the result in Neon PostgreSQL.
+10. Frontend displays the final food analysis.
 
-## Future AI flow
+## Local setup
 
-1. User uploads food image
-2. Worker gets image file from R2
-3. Worker sends image to AI model
-4. AI model returns predicted food and confidence
-5. Worker matches food with nutrition data
-6. Worker saves final result
-7. Worker sends final result to frontend
+```bash
+corepack enable
+corepack pnpm install
+corepack pnpm run model:download
+corepack pnpm run dev:ai
+corepack pnpm run dev:backend
+corepack pnpm run dev:frontend
+```
+
+Root `.env` must include:
+
+```env
+AI_MODEL_ENDPOINT=http://127.0.0.1:8788/predict
+AI_MODEL_API_KEY=
+```
 
 ## AI input
 
-- Food image file
-- Optional meal type
-- Optional user note
+`POST /predict` receives multipart form data:
+
+```text
+image = uploaded food image
+```
+
+Supported backend uploads:
+
+```text
+image/jpeg
+image/png
+image/webp
+```
+
+Default maximum upload size:
+
+```text
+8 MB
+```
 
 ## AI output
 
-- Predicted food name
-- Confidence score
-- Maybe top 3 predictions later
+The AI service returns the exact shape expected by the backend:
 
-## How AI improves project
+```json
+{
+  "foodName": "Pizza",
+  "confidence": 0.87,
+  "nutrition": {
+    "calories": 266,
+    "protein": 11,
+    "carbohydrates": 33,
+    "fats": 10,
+    "fiber": 2
+  },
+  "classification": "Moderate",
+  "healthBenefits": [],
+  "warnings": [],
+  "suggestions": [],
+  "explanation": "Pizza was identified by the local ONNX model with 87% confidence.",
+  "modelName": "mobilenet_v2_food101_onnx_node",
+  "modelVersion": "local-onnx-1"
+}
+```
 
-- Less manual typing
-- Faster food recognition
-- Better user experience
-- Can grow into smart food diary later
+## Database support
 
-## Planning note
+`004_seed_food101_nutrition_catalog.sql` adds all 101 Food-101 classes to `nutrition_catalog`, so lookup/matching works after mock data is removed.
 
-For this submission, AI part is shown as planned workflow only. No live AI model connection yet.
+## Important limitation
+
+The Food-101 model can classify only the 101 trained classes. The nutrition catalog values are starter estimates for project demonstration and should be replaced with verified data before production.
