@@ -6,10 +6,12 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function usePwaInstall() {
+  const isStandalone = () =>
+    window.matchMedia('(display-mode: standalone)').matches ||
+    Boolean((window.navigator as Navigator & {standalone?: boolean}).standalone);
+
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
-  const [installed, setInstalled] = useState(
-    () => window.matchMedia('(display-mode: standalone)').matches,
-  );
+  const [installed, setInstalled] = useState(isStandalone);
 
   useEffect(() => {
     const onPrompt = (event: Event) => {
@@ -20,11 +22,15 @@ export function usePwaInstall() {
       setInstalled(true);
       setInstallEvent(null);
     };
+    const onDisplayModeChange = () => setInstalled(isStandalone());
+    const displayMode = window.matchMedia('(display-mode: standalone)');
     window.addEventListener('beforeinstallprompt', onPrompt);
     window.addEventListener('appinstalled', onInstalled);
+    displayMode.addEventListener('change', onDisplayModeChange);
     return () => {
       window.removeEventListener('beforeinstallprompt', onPrompt);
       window.removeEventListener('appinstalled', onInstalled);
+      displayMode.removeEventListener('change', onDisplayModeChange);
     };
   }, []);
 

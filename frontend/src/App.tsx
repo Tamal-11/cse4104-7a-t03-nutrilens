@@ -172,6 +172,7 @@ export default function App() {
               >
                 <User className="w-6 h-6" />
               </button>
+
             </div>
           </nav>
         )}
