@@ -20,6 +20,9 @@
     "model:check": "npm --prefix ai-node run model:check",
     "deploy": "npm --prefix backend run deploy",
     "db:migrate": "npm --prefix backend run db:migrate",
-    "clean:deps": "node scripts/clean-deps.mjs"
+    "clean:deps": "node scripts/clean-deps.mjs",
+    "setup": "node scripts/setup-local.mjs",
+    "setup:model": "npm --prefix ai-node run model:download",
+    "setup:all": "npm run setup && npm run setup:model"
   }
 }

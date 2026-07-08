@@ -33,11 +33,11 @@ Runtime:
 
 ```bash
 corepack enable
-corepack pnpm install
-corepack pnpm run model:download
-corepack pnpm run dev:ai
-corepack pnpm run dev:backend
-corepack pnpm run dev:frontend
+npm install
+npm run model:download
+npm run dev:ai
+npm run dev:api:local
+npm run dev:frontend
 ```
 
 Root `.env` must include:

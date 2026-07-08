@@ -2,35 +2,41 @@
 
 NutriLens is an AI based food recognition and nutrition analysis system for CSE4104-7A-T03.
 
-The project now has a one-command local demo mode. It starts the app with npm only:
+The project has a local demo mode using npm, a local API, and a local ONNX Food-101 model. Setup is explicit, so `npm run dev` does not install packages or download random files.
 
 | Service | URL | Purpose |
 |---|---|---|
 | Frontend | `http://localhost:3000` | React/Vite user interface |
 | Local API | `http://localhost:8787` | Demo backend compatible with the frontend routes |
-| Local AI | `http://127.0.0.1:8788` | Optional Node.js ONNX Food-101 service. If native AI dependencies fail, the local API still runs with fallback analysis. |
+| Local AI | `http://127.0.0.1:8788` | Required Node.js ONNX Food-101 service for real image detection. |
 
-## Run with one command
+## Run locally
 
 Requirements:
 
 - Node.js 22 or newer
-- Internet connection on first run so npm can install packages
+- Internet connection only for the one-time setup commands
 
-From the project root, run:
+First install dependencies once:
+
+```bash
+npm run setup
+```
+
+Then download the working Food-101 ONNX model once:
+
+```bash
+npm run setup:model
+npm run model:check
+```
+
+Then start the app:
 
 ```bash
 npm run dev
 ```
 
-The command automatically:
-
-1. creates `.env` from `.env.example` if missing,
-2. creates `frontend/.env.local` for the local API URL,
-3. installs dependencies with npm, without PNPM or Corepack,
-4. checks that the ONNX model exists,
-5. tries to start the local AI service,
-6. starts the frontend and local API. If the AI service cannot start, the API still returns a demo fallback analysis so the app remains usable.
+`npm run dev` only starts the services. It does not run `npm install` and does not download models. If dependencies or the model are missing, it prints the exact setup command to run.
 
 Press `Ctrl+C` to stop all services.
 
@@ -43,23 +49,15 @@ This package intentionally uses plain npm. It does not require PNPM or Corepack,
 Cannot find matching keyid
 ```
 
-If you previously ran an older PNPM/Corepack version of this project, the new startup script detects old PNPM `node_modules` and reinstalls dependencies with npm automatically. You can also force a clean reinstall with:
+If you previously ran an older PNPM/Corepack version of this project, clean and reinstall once:
 
 ```bash
 npm run clean:deps
+npm run setup
+npm run setup:model
 npm run dev
 ```
 
-
-To intentionally skip the optional AI service and use the local fallback only:
-
-```bash
-# PowerShell
-$env:SKIP_AI="1"; npm run dev
-
-# macOS/Linux
-SKIP_AI=1 npm run dev
-```
 
 ## Demo login
 
@@ -71,15 +69,18 @@ Local demo mode does not require Neon Auth. You can register or sign in with any
 2. Register or sign in with any test email.
 3. Upload a JPG, PNG, or WebP food image.
 4. The local API saves the image under `.local-storage/uploads/`.
-5. If the Node ONNX AI service is running, the local API sends the image there. Otherwise it returns a fallback demo analysis.
+5. The local API sends the image to the Node ONNX AI service. If AI is offline, the backend returns an error instead of fake demo analysis.
 6. The UI shows the food analysis result.
 
 ## Useful commands
 
 ```bash
-npm run dev              # one-command local demo
+npm run setup            # install dependencies once
+npm run setup:model      # download working Food-101 ONNX model once
+npm run model:check      # verify the ONNX model returns usable scores
+npm run dev              # start local demo, no downloads
 npm run typecheck        # frontend + backend + AI TypeScript checks
-npm run dev:ai           # optional AI service only
+npm run dev:ai           # local ONNX AI service only
 npm run dev:api:local    # local demo API only
 npm run dev:frontend     # frontend only
 npm run db:migrate       # production Neon migrations
@@ -113,4 +114,4 @@ Do not commit or submit real `.env` files. Keep credentials only in your private
 
 ## AI runtime note
 
-The old Python placeholder AI code was removed from the active project. NutriLens now uses the local Node.js ONNX service in `ai-node/`.
+The old Python placeholder AI code is not part of the active detection path. NutriLens uses the local Node.js ONNX service in `ai-node/`. The backend no longer silently returns repeated demo food when AI is unavailable. The old `food101-mobilenetv2.onnx` file is intentionally not used because it returns near-uniform outputs and causes wrong 1% predictions.

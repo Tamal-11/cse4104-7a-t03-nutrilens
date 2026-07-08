@@ -212,10 +212,23 @@ app.post('/api/v1/analyze-food', async (c) => {
     return c.json({ success: false, message: 'Food image was not found.' }, 404);
   }
 
-  const prediction = await requestPrediction(image).catch((error) => {
-    console.error('AI request failed; returning demo fallback.', error);
-    return createFallbackPrediction();
-  });
+  let prediction;
+  try {
+    prediction = await requestPrediction(image);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Local ONNX AI service failed.';
+    console.error('AI request failed.', error);
+    logs.unshift(`AI analysis failed for ${image.fileName}: ${message}`);
+    return c.json(
+      {
+        success: false,
+        message: `Food detection failed: ${message}`,
+        details: 'The app now requires the local ONNX Food-101 model instead of returning fake demo results. Start the AI service with npm run dev or npm run dev:ai.',
+        aiEndpoint: AI_MODEL_ENDPOINT,
+      },
+      503,
+    );
+  }
 
   const analysis = {
     analysisId: crypto.randomUUID(),
@@ -229,8 +242,9 @@ app.post('/api/v1/analyze-food', async (c) => {
     suggestions: prediction.suggestions || [],
     explanation: prediction.explanation || `${prediction.foodName} was identified with ${Math.round(prediction.confidence * 100)}% confidence.`,
     classification: prediction.classification || 'Moderate',
-    modelName: prediction.modelName || 'local-demo-fallback',
-    modelVersion: prediction.modelVersion || 'local-demo',
+    modelName: prediction.modelName || 'local-onnx-food101',
+    modelVersion: prediction.modelVersion || 'local-onnx',
+    topPredictions: prediction.topPredictions || [],
     responseTimeMs: Date.now() - startedAt,
   };
 
@@ -330,16 +344,25 @@ async function requestPrediction(image) {
   const buffer = await readFile(image.filePath);
   form.append('image', new File([buffer], image.fileName, { type: image.mimeType }));
 
+  const timeoutMs = Number(process.env.AI_REQUEST_TIMEOUT_MS || 30000);
   const response = await fetch(AI_MODEL_ENDPOINT, {
     method: 'POST',
     headers: AI_MODEL_API_KEY ? { Authorization: `Bearer ${AI_MODEL_API_KEY}` } : undefined,
     body: form,
+    signal: AbortSignal.timeout(timeoutMs),
   });
+
   const payload = await response.json().catch(() => null);
-  if (!response.ok || !payload) {
+  if (!response.ok || !payload || payload.success === false) {
     throw new Error(payload?.message || `AI service failed with status ${response.status}.`);
   }
-  return payload;
+
+  const prediction = payload.data ?? payload;
+  if (!prediction.foodName || !prediction.nutrition) {
+    throw new Error('AI service returned an invalid prediction payload.');
+  }
+
+  return prediction;
 }
 
 async function checkAiHealth() {
@@ -347,7 +370,7 @@ async function checkAiHealth() {
     const url = new URL(AI_MODEL_ENDPOINT);
     url.pathname = '/health';
     url.search = '';
-    const response = await fetch(url, { signal: AbortSignal.timeout(1500) });
+    const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
     const payload = await response.json().catch(() => ({}));
     return { ready: response.ok && payload.status === 'ready', status: payload.status || response.statusText, endpoint: AI_MODEL_ENDPOINT };
   } catch {
@@ -376,25 +399,6 @@ function mimeExtension(mimeType) {
   if (mimeType === 'image/png') return '.png';
   if (mimeType === 'image/webp') return '.webp';
   return '.jpg';
-}
-
-function createFallbackPrediction() {
-  return {
-    foodName: 'Demo Food',
-    confidence: 0.5,
-    nutrition: {
-      calories: 240,
-      protein: 8,
-      carbohydrates: 30,
-      fats: 10,
-      fiber: 2,
-    },
-    classification: 'Moderate',
-    healthBenefits: ['The upload and analysis flow is working in local demo mode.'],
-    warnings: ['The local AI service was unreachable, so this is a fallback result.'],
-    suggestions: ['Check that the AI service is running at the configured AI_MODEL_ENDPOINT.'],
-    explanation: 'Fallback result returned because the local AI service was not reachable.',
-  };
 }
 
 serve({ fetch: app.fetch, port: PORT, hostname: HOST }, (info) => {

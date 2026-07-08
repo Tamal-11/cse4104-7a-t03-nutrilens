@@ -12,14 +12,14 @@
     "dev:local": "node scripts/local-server.mjs"
   },
   "dependencies": {
-    "@neondatabase/serverless": "latest",
-    "dotenv": "^16.6.1",
-    "hono": "latest",
-    "@hono/node-server": "latest"
+    "@hono/node-server": "2.0.8",
+    "@neondatabase/serverless": "1.1.0",
+    "dotenv": "16.6.1",
+    "hono": "4.12.28"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "latest",
-    "typescript": "latest",
-    "wrangler": "latest"
+    "@cloudflare/workers-types": "5.20260708.1",
+    "typescript": "6.0.3",
+    "wrangler": "4.108.0"
   }
 }

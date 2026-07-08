@@ -1,40 +1,20 @@
 import { spawnSync, spawn } from 'node:child_process';
-import { existsSync, copyFileSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, copyFileSync, writeFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 const isWindows = process.platform === 'win32';
+const requiredModel = path.join(root, 'ai-node', 'models', 'st_efficientnetlcv1_224_tfs_qdq_int8.onnx');
+const oldBrokenModel = path.join(root, 'ai-node', 'models', 'food101-mobilenetv2.onnx');
 
 function ensureNodeVersion() {
   const major = Number(process.versions.node.split('.')[0]);
   if (!Number.isFinite(major) || major < 22) {
     console.error(`Node.js 22 or newer is required. Current version: ${process.version}`);
-    console.error('Install Node.js 22+, then run: npm run dev');
+    console.error('Install Node.js 22+, then run: npm run setup');
     process.exit(1);
-  }
-}
-
-function run(command, options = {}) {
-  const result = spawnSync(command, {
-    cwd: root,
-    stdio: 'inherit',
-    shell: true,
-    env: { ...process.env, ...options.env },
-  });
-
-  if (result.status !== 0 && !options.allowFail) {
-    process.exit(result.status ?? 1);
-  }
-
-  return result.status === 0;
-}
-
-function removePath(relativePath) {
-  const target = path.join(root, relativePath);
-  if (existsSync(target)) {
-    rmSync(target, { recursive: true, force: true });
   }
 }
 
@@ -53,66 +33,35 @@ function ensureLocalEnv() {
   }
 }
 
-function isNpmInstalled(relativeDir, requiredPackages = []) {
-  if (!existsSync(path.join(root, relativeDir, 'node_modules'))) return false;
-  return requiredPackages.every((packageName) => existsSync(path.join(root, relativeDir, 'node_modules', packageName, 'package.json')));
+function hasPackage(relativeDir, packageName) {
+  return existsSync(path.join(root, relativeDir, 'node_modules', packageName, 'package.json'));
 }
 
-function installPackage(relativeDir, label, required = true, requiredPackages = []) {
-  if (isNpmInstalled(relativeDir, requiredPackages)) {
-    console.log(`${label} dependencies already installed.`);
-    return true;
+function checkDependencies() {
+  const missing = [];
+  if (!hasPackage('backend', 'hono')) missing.push('backend');
+  if (!hasPackage('frontend', 'vite')) missing.push('frontend');
+  if (!hasPackage('ai-node', 'onnxruntime-node') || !hasPackage('ai-node', 'sharp') || !hasPackage('ai-node', 'tsx')) missing.push('ai-node');
+
+  if (missing.length > 0) {
+    console.error(`Missing dependencies for: ${missing.join(', ')}`);
+    console.error('Run this once first: npm run setup');
+    process.exit(1);
   }
-
-  console.log(`Installing ${label} dependencies with npm...`);
-  const ok = run(`npm install --prefix ${relativeDir}`, { allowFail: !required });
-
-  if (!ok && !required) {
-    console.warn(`${label} dependencies could not be installed. Continuing without ${label}.`);
-  }
-
-  return ok;
 }
 
-function ensureDependencies() {
-  const rootPnpmStore = path.join(root, 'node_modules', '.pnpm');
-  if (existsSync(rootPnpmStore)) {
-    console.log('Detected old PNPM/Corepack node_modules. Cleaning them for npm compatibility...');
-    removePath('node_modules');
-    removePath('frontend/node_modules');
-    removePath('backend/node_modules');
-    removePath('ai-node/node_modules');
+function checkModel() {
+  if (existsSync(requiredModel) && statSync(requiredModel).size > 1_000_000) {
+    console.log('Working Food-101 ONNX model found.');
+    return;
   }
 
-  const backendReady = installPackage('backend', 'Local API', true, ['hono']);
-  const frontendReady = installPackage('frontend', 'Frontend', true, ['vite']);
-
-  const skipAi = ['1', 'true', 'yes'].includes(String(process.env.SKIP_AI || '').toLowerCase());
-  let aiReady = false;
-
-  if (!skipAi) {
-    aiReady = installPackage('ai-node', 'AI service', false, ['tsx', 'onnxruntime-node', 'sharp']);
-  } else {
-    console.log('Skipping AI service because SKIP_AI is enabled. Local API fallback will be used.');
+  console.error('Working Food-101 ONNX model is missing.');
+  if (existsSync(oldBrokenModel)) {
+    console.error('Found old food101-mobilenetv2.onnx, but that model returns near-uniform scores and is not used.');
   }
-
-  return { backendReady, frontendReady, aiReady };
-}
-
-function ensureModel(aiReady) {
-  const modelPath = path.join(root, 'ai-node', 'models', 'food101-mobilenetv2.onnx');
-  if (existsSync(modelPath)) {
-    console.log('AI model file found.');
-    return true;
-  }
-
-  if (!aiReady) {
-    console.warn('AI model file not found. Continuing with local API fallback.');
-    return false;
-  }
-
-  console.log('AI model file not found. Downloading model...');
-  return run('npm --prefix ai-node run model:download', { allowFail: true });
+  console.error('Run this once to download the correct local model: npm run setup:model');
+  process.exit(1);
 }
 
 function start(name, command, env = {}, required = true) {
@@ -132,7 +81,7 @@ function start(name, command, env = {}, required = true) {
       console.error(message);
       shutdown(code || 1);
     } else {
-      console.warn(`${message} Continuing with local API fallback.`);
+      console.warn(message);
     }
   });
 
@@ -159,29 +108,23 @@ process.on('SIGTERM', () => shutdown(0));
 
 ensureNodeVersion();
 ensureLocalEnv();
-const { aiReady } = ensureDependencies();
-const modelReady = ensureModel(aiReady);
-const startAi = aiReady && modelReady;
+checkDependencies();
+checkModel();
 
 console.log('\nStarting NutriLens locally...');
 console.log('Frontend: http://localhost:3000');
 console.log('Local API: http://localhost:8787');
-if (startAi) {
-  console.log('AI service: http://127.0.0.1:8788');
-} else {
-  console.log('AI service: not started; local API fallback analysis is enabled.');
-}
+console.log('AI service: http://127.0.0.1:8788');
 console.log('Press Ctrl+C to stop all services.\n');
 
 const commonEnv = {
-  AI_MODEL_ENDPOINT: process.env.AI_MODEL_ENDPOINT || 'http://127.0.0.1:8788/predict',
+  AI_MODEL_ENDPOINT: 'http://127.0.0.1:8788/predict',
+  AI_NODE_MODEL_PATH: './models/st_efficientnetlcv1_224_tfs_qdq_int8.onnx',
+  AI_NODE_MODEL_KIND: 'stmicro_effnet_int8_food101',
   LOCAL_DEMO_MODE: 'true',
 };
 
-if (startAi) {
-  start('AI service', 'npm --prefix ai-node run dev', commonEnv, false);
-}
-
+start('AI service', 'npm --prefix ai-node run dev', commonEnv, true);
 start('Local API', 'npm --prefix backend run dev:local', commonEnv, true);
 start('Frontend', 'npm --prefix frontend run dev', {
   ...commonEnv,

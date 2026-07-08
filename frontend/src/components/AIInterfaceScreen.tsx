@@ -84,7 +84,7 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
     setUploadedAnalysis(null);
   };
 
-  const currentFood = selectedScan || uploadedAnalysis;
+  const currentFood = uploadedAnalysis || selectedScan;
   const resultMacros = currentFood?.macros ?? {
     calories: 0,
     protein: 0,

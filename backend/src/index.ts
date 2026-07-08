@@ -433,7 +433,7 @@ app.post("/api/v1/analyze-food", async (c) => {
       {
         success: false,
         message:
-          "AI_MODEL_ENDPOINT is not configured. Start the local Node AI service with: corepack pnpm --dir ai-node run dev",
+          "AI_MODEL_ENDPOINT is not configured. Start the local Node AI service with: npm run dev:ai",
       },
       503,
     );
@@ -477,7 +477,7 @@ app.post("/api/v1/analyze-food", async (c) => {
   const prediction = (await modelResponse
     .json()
     .catch(() => null)) as ModelPrediction | null;
-  if (!modelResponse.ok || !prediction) {
+  if (!modelResponse.ok || !prediction || (prediction as { success?: boolean }).success === false) {
     return c.json(
       {
         success: false,
@@ -874,6 +874,7 @@ function validateUploadedImage(image: File, configuredMaxSize?: string) {
 }
 
 type ModelPrediction = {
+  success?: boolean;
   foodName: string;
   confidence: number;
   nutrition: {
