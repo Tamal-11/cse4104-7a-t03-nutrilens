@@ -1,19 +1,25 @@
 {
   "name": "cse4104-7a-t03-nutrilens",
   "private": true,
-  "packageManager": "pnpm@10.25.0",
+  "packageManager": "npm@10.9.0",
   "scripts": {
-    "dev:frontend": "corepack pnpm --dir frontend run dev",
-    "dev:backend": "corepack pnpm --dir backend run dev",
-    "deploy": "corepack pnpm --dir backend run deploy",
-    "db:migrate": "corepack pnpm --dir backend run db:migrate",
-    "build:frontend": "corepack pnpm --dir frontend run build",
-    "typecheck:backend": "corepack pnpm --dir backend run typecheck",
-    "dev:ai": "corepack pnpm --dir ai-node run dev",
-    "build:ai": "corepack pnpm --dir ai-node run build",
-    "typecheck:ai": "corepack pnpm --dir ai-node run typecheck",
-    "model:download": "corepack pnpm --dir ai-node run model:download",
-    "model:check": "corepack pnpm --dir ai-node run model:check",
-    "dev:local": "corepack pnpm --parallel --filter nutrilens-ai-node --filter nutrilens-backend --filter nutrilens-frontend run dev"
+    "dev": "node scripts/start-local.mjs",
+    "start": "node scripts/start-local.mjs",
+    "start:local": "node scripts/start-local.mjs",
+    "dev:local": "node scripts/start-local.mjs",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:api:local": "npm --prefix backend run dev:local",
+    "dev:ai": "npm --prefix ai-node run dev",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:ai": "npm --prefix ai-node run build",
+    "typecheck:frontend": "npm --prefix frontend run lint",
+    "typecheck:backend": "npm --prefix backend run typecheck",
+    "typecheck:ai": "npm --prefix ai-node run typecheck",
+    "typecheck": "npm run typecheck:frontend && npm run typecheck:backend && npm run typecheck:ai",
+    "model:download": "npm --prefix ai-node run model:download",
+    "model:check": "npm --prefix ai-node run model:check",
+    "deploy": "npm --prefix backend run deploy",
+    "db:migrate": "npm --prefix backend run db:migrate",
+    "clean:deps": "node scripts/clean-deps.mjs"
   }
 }

@@ -2,7 +2,7 @@
   "name": "nutrilens-frontend",
   "private": true,
   "version": "0.1.0",
-  "packageManager": "pnpm@10.25.0",
+  "packageManager": "npm@10.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
