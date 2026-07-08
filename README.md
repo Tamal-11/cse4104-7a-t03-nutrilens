@@ -119,3 +119,19 @@ Docs now follow the target backend plan:
 - Cloudflare R2 for image files
 
 The legacy Supabase folder has been removed. Backend code now lives in `backend/`.
+
+## Local Node.js ONNX AI
+
+This project now includes a local AI service in `ai-node/` so food recognition can run locally with Node.js and ONNX Runtime, without Python.
+
+```bash
+corepack enable
+corepack pnpm install
+corepack pnpm run model:download
+corepack pnpm run dev:ai
+corepack pnpm run dev:backend
+corepack pnpm run dev:frontend
+```
+
+Set `AI_MODEL_ENDPOINT=http://127.0.0.1:8788/predict` in `.env`. Full guide: `documentation/local_node_onnx_ai_integration.md`.
+

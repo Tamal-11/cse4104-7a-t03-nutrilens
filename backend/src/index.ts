@@ -12,6 +12,7 @@ type Env = {
     AI_MODEL_ENDPOINT?: string;
     AI_MODEL_API_KEY?: string;
     ADMIN_EMAILS?: string;
+    MAX_IMAGE_UPLOAD_BYTES?: string;
   };
   Variables: {
     user: AuthUser;
@@ -25,6 +26,9 @@ type AuthUser = {
 };
 
 const app = new Hono<Env>();
+
+const DEFAULT_MAX_IMAGE_UPLOAD_BYTES = 8 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 app.use(
   "*",
@@ -73,7 +77,10 @@ app.get("/health", async (c) => {
         server: { status: "up" },
         database: {
           status: "down",
-          message: error instanceof Error ? error.message : "Database connection failed.",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Database connection failed.",
         },
         responseTimeMs: Date.now() - startedAt,
         timestamp: new Date().toISOString(),
@@ -86,14 +93,17 @@ app.get("/health", async (c) => {
 app.get("/help", (c) =>
   c.json({
     success: true,
-    message: "Use /help/<endpoint-path>?method=<HTTP_METHOD> for detailed documentation.",
-    endpoints: endpointDocs.map(({ method, path, summary, authentication }) => ({
-      method,
-      path,
-      summary,
-      authentication,
-      helpUrl: `/help${path === "/" ? "" : path}?method=${method === "ALL" ? "" : method}`,
-    })),
+    message:
+      "Use /help/<endpoint-path>?method=<HTTP_METHOD> for detailed documentation.",
+    endpoints: endpointDocs.map(
+      ({ method, path, summary, authentication }) => ({
+        method,
+        path,
+        summary,
+        authentication,
+        helpUrl: `/help${path === "/" ? "" : path}?method=${method === "ALL" ? "" : method}`,
+      }),
+    ),
   }),
 );
 
@@ -114,7 +124,10 @@ app.get("/help/*", (c) => {
     );
   }
 
-  return c.json({ success: true, data: matches.length === 1 ? matches[0] : matches });
+  return c.json({
+    success: true,
+    data: matches.length === 1 ? matches[0] : matches,
+  });
 });
 
 const authRoutes: Record<string, string> = {
@@ -126,11 +139,17 @@ const authRoutes: Record<string, string> = {
 
 app.all("/api/auth/*", async (c) => {
   if (!c.env.NEON_AUTH_URL) {
-    return c.json({ success: false, message: "Authentication service is not configured." }, 500);
+    return c.json(
+      { success: false, message: "Authentication service is not configured." },
+      500,
+    );
   }
 
-  const authPath = authRoutes[c.req.path] ?? c.req.path.slice("/api/auth".length);
-  const target = new URL(`${c.env.NEON_AUTH_URL.replace(/\/+$/, "")}${authPath}`);
+  const authPath =
+    authRoutes[c.req.path] ?? c.req.path.slice("/api/auth".length);
+  const target = new URL(
+    `${c.env.NEON_AUTH_URL.replace(/\/+$/, "")}${authPath}`,
+  );
   target.search = new URL(c.req.url).search;
 
   const upstreamHeaders = new Headers(c.req.raw.headers);
@@ -191,7 +210,10 @@ app.use("/api/v1/*", async (c, next) => {
   c.set("user", user);
   await ensureProfile(c.env.DATABASE_URL, user);
   if (!(await isAccountActive(c.env.DATABASE_URL, user.id))) {
-    return c.json({success: false, message: "This account is suspended."}, 403);
+    return c.json(
+      { success: false, message: "This account is suspended." },
+      403,
+    );
   }
   await next();
 });
@@ -252,7 +274,8 @@ app.post("/api/v1/profile", async (c) => {
     healthConditions?: string[];
     dietaryPreferences?: string[];
   }>();
-  const fullName = body.fullName?.trim() || user.name || user.email.split("@")[0];
+  const fullName =
+    body.fullName?.trim() || user.name || user.email.split("@")[0];
   const sql = neon(c.env.DATABASE_URL);
 
   await sql`
@@ -300,6 +323,14 @@ app.post("/api/v1/upload-food-image", async (c) => {
 
   if (!isUploadedFile(image)) {
     return c.json({ success: false, message: "Image file is required." }, 400);
+  }
+
+  const uploadError = validateUploadedImage(
+    image,
+    c.env.MAX_IMAGE_UPLOAD_BYTES,
+  );
+  if (uploadError) {
+    return c.json({ success: false, message: uploadError }, 400);
   }
 
   const mealType = stringValue(form.get("mealType"));
@@ -354,11 +385,22 @@ app.get("/api/v1/food-images/:imageId", async (c) => {
   const sql = neon(c.env.DATABASE_URL);
   const rows = await sql`select object_key, mime_type from food_images
     where id = ${c.req.param("imageId")} and user_id = ${user.id} limit 1`;
-  if (!rows[0]) return c.json({success: false, message: "Food image was not found."}, 404);
+  if (!rows[0])
+    return c.json(
+      { success: false, message: "Food image was not found." },
+      404,
+    );
   const image = await c.env.FOOD_IMAGES.get(rows[0].object_key);
-  if (!image) return c.json({success: false, message: "Food image data was not found."}, 404);
+  if (!image)
+    return c.json(
+      { success: false, message: "Food image data was not found." },
+      404,
+    );
   return new Response(image.body, {
-    headers: {"Content-Type": rows[0].mime_type, "Cache-Control": "private, max-age=3600"},
+    headers: {
+      "Content-Type": rows[0].mime_type,
+      "Cache-Control": "private, max-age=3600",
+    },
   });
 });
 
@@ -380,16 +422,29 @@ app.post("/api/v1/analyze-food", async (c) => {
   `;
 
   if (imageRows.length === 0) {
-    return c.json({ success: false, message: "Food image was not found." }, 404);
+    return c.json(
+      { success: false, message: "Food image was not found." },
+      404,
+    );
   }
 
   if (!c.env.AI_MODEL_ENDPOINT) {
-    return c.json({ success: false, message: "AI_MODEL_ENDPOINT is not configured." }, 503);
+    return c.json(
+      {
+        success: false,
+        message:
+          "AI_MODEL_ENDPOINT is not configured. Start the local Node AI service with: corepack pnpm --dir ai-node run dev",
+      },
+      503,
+    );
   }
 
   const storedImage = await c.env.FOOD_IMAGES.get(imageRows[0].object_key);
   if (!storedImage) {
-    return c.json({ success: false, message: "Uploaded image data was not found." }, 404);
+    return c.json(
+      { success: false, message: "Uploaded image data was not found." },
+      404,
+    );
   }
 
   const modelForm = new FormData();
@@ -399,23 +454,49 @@ app.post("/api/v1/analyze-food", async (c) => {
       type: imageRows[0].mime_type,
     }),
   );
-  const modelResponse = await fetch(c.env.AI_MODEL_ENDPOINT, {
-    method: "POST",
-    headers: c.env.AI_MODEL_API_KEY
-      ? { Authorization: `Bearer ${c.env.AI_MODEL_API_KEY}` }
-      : undefined,
-    body: modelForm,
-  });
-  const prediction = await modelResponse.json().catch(() => null) as ModelPrediction | null;
+  let modelResponse: Response;
+  try {
+    modelResponse = await fetch(c.env.AI_MODEL_ENDPOINT, {
+      method: "POST",
+      headers: c.env.AI_MODEL_API_KEY
+        ? { Authorization: `Bearer ${c.env.AI_MODEL_API_KEY}` }
+        : undefined,
+      body: modelForm,
+    });
+  } catch (error) {
+    console.error("AI model request failed", error);
+    return c.json(
+      {
+        success: false,
+        message:
+          "Could not reach the local AI service. Make sure ai-node is running on the AI_MODEL_ENDPOINT URL.",
+      },
+      502,
+    );
+  }
+  const prediction = (await modelResponse
+    .json()
+    .catch(() => null)) as ModelPrediction | null;
   if (!modelResponse.ok || !prediction) {
-    return c.json({
-      success: false,
-      message: prediction?.message || `Food analysis service failed (${modelResponse.status}).`,
-    }, 502);
+    return c.json(
+      {
+        success: false,
+        message:
+          prediction?.message ||
+          `Food analysis service failed (${modelResponse.status}).`,
+      },
+      502,
+    );
   }
   const validationError = validatePrediction(prediction);
   if (validationError) {
-    return c.json({ success: false, message: `Invalid analysis response: ${validationError}` }, 502);
+    return c.json(
+      {
+        success: false,
+        message: `Invalid analysis response: ${validationError}`,
+      },
+      502,
+    );
   }
 
   const catalogRows = await sql`
@@ -569,30 +650,61 @@ app.get("/api/v1/analysis-history/:analysisId", async (c) => {
 
 app.get("/api/v1/nutrition-lookup", async (c) => {
   const foodName = c.req.query("food")?.trim();
-  if (!foodName) return c.json({ success: false, message: "food query is required." }, 400);
+  if (!foodName)
+    return c.json({ success: false, message: "food query is required." }, 400);
   const sql = neon(c.env.DATABASE_URL);
-  const rows = await sql`select * from nutrition_catalog where lower(food_name) = lower(${foodName}) limit 1`;
-  if (!rows[0]) return c.json({ success: false, message: "Nutrition entry was not found." }, 404);
+  const rows =
+    await sql`select * from nutrition_catalog where lower(food_name) = lower(${foodName}) limit 1`;
+  if (!rows[0])
+    return c.json(
+      { success: false, message: "Nutrition entry was not found." },
+      404,
+    );
   const row = rows[0];
-  return c.json({success: true, data: {
-    foodName: row.food_name, servingSize: row.serving_size, calories: Number(row.calories),
-    protein: Number(row.protein), carbohydrates: Number(row.carbohydrates), fats: Number(row.fats),
-    fiber: Number(row.fiber), vitamins: row.vitamins, minerals: row.minerals,
-  }});
+  return c.json({
+    success: true,
+    data: {
+      foodName: row.food_name,
+      servingSize: row.serving_size,
+      calories: Number(row.calories),
+      protein: Number(row.protein),
+      carbohydrates: Number(row.carbohydrates),
+      fats: Number(row.fats),
+      fiber: Number(row.fiber),
+      vitamins: row.vitamins,
+      minerals: row.minerals,
+    },
+  });
 });
 
 app.get("/api/v1/health-insights", async (c) => {
   const foodName = c.req.query("food")?.trim();
-  if (!foodName) return c.json({ success: false, message: "food query is required." }, 400);
+  if (!foodName)
+    return c.json({ success: false, message: "food query is required." }, 400);
   const sql = neon(c.env.DATABASE_URL);
-  const rows = await sql`select health_benefits, warnings from nutrition_catalog where lower(food_name) = lower(${foodName}) limit 1`;
-  if (!rows[0]) return c.json({ success: false, message: "Health insights were not found." }, 404);
-  return c.json({success: true, data: {healthBenefits: rows[0].health_benefits, warnings: rows[0].warnings}});
+  const rows =
+    await sql`select health_benefits, warnings from nutrition_catalog where lower(food_name) = lower(${foodName}) limit 1`;
+  if (!rows[0])
+    return c.json(
+      { success: false, message: "Health insights were not found." },
+      404,
+    );
+  return c.json({
+    success: true,
+    data: {
+      healthBenefits: rows[0].health_benefits,
+      warnings: rows[0].warnings,
+    },
+  });
 });
 
 app.get("/api/v1/admin/overview", async (c) => {
   const user = c.get("user");
-  if (!isAdmin(user, c.env.ADMIN_EMAILS)) return c.json({success: false, message: "Administrator access required."}, 403);
+  if (!isAdmin(user, c.env.ADMIN_EMAILS))
+    return c.json(
+      { success: false, message: "Administrator access required." },
+      403,
+    );
   const startedAt = Date.now();
   const sql = neon(c.env.DATABASE_URL);
   const [users, totals, events] = await Promise.all([
@@ -606,46 +718,88 @@ app.get("/api/v1/admin/overview", async (c) => {
     sql`select level, message, created_at from system_events order by created_at desc limit 20`,
   ]);
   const total = totals[0];
-  return c.json({success: true, data: {
-    currentUserId: user.id,
-    users: users.map((row) => ({
-      id: row.user_id, name: row.full_name, email: row.email, status: row.account_status,
-      role: isAdmin({email: row.email}, c.env.ADMIN_EMAILS) ? "Admin" : "User",
-      joinedDate: new Date(row.created_at).toISOString(), scansCount: Number(row.scans_count),
-    })),
-    stats: {
-      totalUsers: Number(total.total_users), totalScans: Number(total.total_scans),
-      activeUsers24h: Number(total.active_users), averageResponseTime: (Date.now() - startedAt) / 1000,
-      systemStatus: "Healthy", modelAccuracy: 0,
+  return c.json({
+    success: true,
+    data: {
+      currentUserId: user.id,
+      users: users.map((row) => ({
+        id: row.user_id,
+        name: row.full_name,
+        email: row.email,
+        status: row.account_status,
+        role: isAdmin({ email: row.email }, c.env.ADMIN_EMAILS)
+          ? "Admin"
+          : "User",
+        joinedDate: new Date(row.created_at).toISOString(),
+        scansCount: Number(row.scans_count),
+      })),
+      stats: {
+        totalUsers: Number(total.total_users),
+        totalScans: Number(total.total_scans),
+        activeUsers24h: Number(total.active_users),
+        averageResponseTime: (Date.now() - startedAt) / 1000,
+        systemStatus: "Healthy",
+        modelAccuracy: 0,
+      },
+      logs: events.map(
+        (row) =>
+          `[${new Date(row.created_at).toISOString()}] [${row.level}] ${row.message}`,
+      ),
     },
-    logs: events.map((row) => `[${new Date(row.created_at).toISOString()}] [${row.level}] ${row.message}`),
-  }});
+  });
 });
 
 app.put("/api/v1/admin/users/:userId/status", async (c) => {
   const admin = c.get("user");
-  if (!isAdmin(admin, c.env.ADMIN_EMAILS)) return c.json({success: false, message: "Administrator access required."}, 403);
+  if (!isAdmin(admin, c.env.ADMIN_EMAILS))
+    return c.json(
+      { success: false, message: "Administrator access required." },
+      403,
+    );
   const targetUserId = c.req.param("userId");
-  const body = await c.req.json<{status?: string}>();
+  const body = await c.req.json<{ status?: string }>();
   if (body.status !== "Active" && body.status !== "Suspended") {
-    return c.json({success: false, message: "status must be Active or Suspended."}, 400);
+    return c.json(
+      { success: false, message: "status must be Active or Suspended." },
+      400,
+    );
   }
   if (targetUserId === admin.id && body.status === "Suspended") {
-    return c.json({success: false, message: "Administrators cannot suspend their own account."}, 409);
+    return c.json(
+      {
+        success: false,
+        message: "Administrators cannot suspend their own account.",
+      },
+      409,
+    );
   }
   const sql = neon(c.env.DATABASE_URL);
-  const rows = await sql`update user_profiles set account_status = ${body.status}
+  const rows =
+    await sql`update user_profiles set account_status = ${body.status}
     where user_id = ${targetUserId} returning user_id, full_name, email, account_status, created_at`;
-  if (!rows[0]) return c.json({success: false, message: "User was not found."}, 404);
+  if (!rows[0])
+    return c.json({ success: false, message: "User was not found." }, 404);
   const row = rows[0];
-  return c.json({success: true, data: {
-    id: row.user_id, name: row.full_name, email: row.email, status: row.account_status,
-    role: isAdmin({email: row.email}, c.env.ADMIN_EMAILS) ? "Admin" : "User",
-    joinedDate: new Date(row.created_at).toISOString(), scansCount: 0,
-  }});
+  return c.json({
+    success: true,
+    data: {
+      id: row.user_id,
+      name: row.full_name,
+      email: row.email,
+      status: row.account_status,
+      role: isAdmin({ email: row.email }, c.env.ADMIN_EMAILS)
+        ? "Admin"
+        : "User",
+      joinedDate: new Date(row.created_at).toISOString(),
+      scansCount: 0,
+    },
+  });
 });
 
-async function getCurrentUser(request: Request, neonAuthUrl: string): Promise<AuthUser | null> {
+async function getCurrentUser(
+  request: Request,
+  neonAuthUrl: string,
+): Promise<AuthUser | null> {
   if (!neonAuthUrl) {
     throw new Error("Authentication service is not configured.");
   }
@@ -657,10 +811,13 @@ async function getCurrentUser(request: Request, neonAuthUrl: string): Promise<Au
   if (authorization) headers.set("Authorization", authorization);
   if (cookie) headers.set("Cookie", cookie);
 
-  const response = await fetch(`${neonAuthUrl.replace(/\/+$/, "")}/get-session`, {
-    method: "GET",
-    headers,
-  });
+  const response = await fetch(
+    `${neonAuthUrl.replace(/\/+$/, "")}/get-session`,
+    {
+      method: "GET",
+      headers,
+    },
+  );
 
   if (!response.ok) {
     return null;
@@ -692,7 +849,8 @@ async function ensureProfile(databaseUrl: string, user: AuthUser) {
 
 async function isAccountActive(databaseUrl: string, userId: string) {
   const sql = neon(databaseUrl);
-  const rows = await sql`select account_status from user_profiles where user_id = ${userId} limit 1`;
+  const rows =
+    await sql`select account_status from user_profiles where user_id = ${userId} limit 1`;
   return rows[0]?.account_status === "Active";
 }
 
@@ -704,10 +862,27 @@ function isUploadedFile(value: File | string | null): value is File {
   return typeof value === "object" && value !== null && "stream" in value;
 }
 
+function validateUploadedImage(image: File, configuredMaxSize?: string) {
+  const maxSize = Number(configuredMaxSize || DEFAULT_MAX_IMAGE_UPLOAD_BYTES);
+  if (!ALLOWED_IMAGE_TYPES.has(image.type)) {
+    return "Only JPG, PNG, and WebP food images are supported.";
+  }
+  if (Number.isFinite(maxSize) && image.size > maxSize) {
+    return `Image is too large. Maximum allowed size is ${Math.round(maxSize / 1024 / 1024)} MB.`;
+  }
+  return null;
+}
+
 type ModelPrediction = {
   foodName: string;
   confidence: number;
-  nutrition: {calories: number; protein: number; carbohydrates: number; fats: number; fiber: number};
+  nutrition: {
+    calories: number;
+    protein: number;
+    carbohydrates: number;
+    fats: number;
+    fiber: number;
+  };
   healthBenefits?: string[];
   warnings?: string[];
   suggestions?: string[];
@@ -715,22 +890,43 @@ type ModelPrediction = {
   classification: "Healthy" | "Moderate" | "Unhealthy";
   modelName?: string;
   modelVersion?: string;
+  topPredictions?: Array<{
+    label: string;
+    foodName: string;
+    confidence: number;
+  }>;
   message?: string;
 };
 
 function validatePrediction(value: ModelPrediction): string | null {
   if (!value.foodName?.trim()) return "foodName is required";
-  if (!Number.isFinite(value.confidence) || value.confidence < 0 || value.confidence > 1) return "confidence must be between 0 and 1";
+  if (
+    !Number.isFinite(value.confidence) ||
+    value.confidence < 0 ||
+    value.confidence > 1
+  )
+    return "confidence must be between 0 and 1";
   if (!value.nutrition) return "nutrition is required";
-  for (const key of ["calories", "protein", "carbohydrates", "fats", "fiber"] as const) {
-    if (!Number.isFinite(value.nutrition[key]) || value.nutrition[key] < 0) return `nutrition.${key} must be a non-negative number`;
+  for (const key of [
+    "calories",
+    "protein",
+    "carbohydrates",
+    "fats",
+    "fiber",
+  ] as const) {
+    if (!Number.isFinite(value.nutrition[key]) || value.nutrition[key] < 0)
+      return `nutrition.${key} must be a non-negative number`;
   }
-  if (!["Healthy", "Moderate", "Unhealthy"].includes(value.classification)) return "classification is invalid";
+  if (!["Healthy", "Moderate", "Unhealthy"].includes(value.classification))
+    return "classification is invalid";
   return null;
 }
 
 function isAdmin(user: Pick<AuthUser, "email">, configured?: string) {
-  const admins = (configured ?? "").split(",").map((email) => email.trim().toLowerCase()).filter(Boolean);
+  const admins = (configured ?? "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
   return admins.includes(user.email.toLowerCase());
 }
 

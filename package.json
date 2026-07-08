@@ -8,6 +8,12 @@
     "deploy": "corepack pnpm --dir backend run deploy",
     "db:migrate": "corepack pnpm --dir backend run db:migrate",
     "build:frontend": "corepack pnpm --dir frontend run build",
-    "typecheck:backend": "corepack pnpm --dir backend run typecheck"
+    "typecheck:backend": "corepack pnpm --dir backend run typecheck",
+    "dev:ai": "corepack pnpm --dir ai-node run dev",
+    "build:ai": "corepack pnpm --dir ai-node run build",
+    "typecheck:ai": "corepack pnpm --dir ai-node run typecheck",
+    "model:download": "corepack pnpm --dir ai-node run model:download",
+    "model:check": "corepack pnpm --dir ai-node run model:check",
+    "dev:local": "corepack pnpm --parallel --filter nutrilens-ai-node --filter nutrilens-backend --filter nutrilens-frontend run dev"
   }
 }
