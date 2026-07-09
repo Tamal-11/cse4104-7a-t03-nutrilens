@@ -11,6 +11,6 @@ ai-node/
 Use this instead:
 
 ```bash
-corepack pnpm run model:download
-corepack pnpm run dev:ai
+npm run model:download
+npm run dev:ai
 ```

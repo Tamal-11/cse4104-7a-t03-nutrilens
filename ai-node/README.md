@@ -1,43 +1,53 @@
 # NutriLens Local AI Service
 
-This package replaces the unfinished Python AI layer with a local Node.js ONNX inference service.
+This package runs the local Node.js ONNX food-recognition service used by the NutriLens demo.
 
 ## What it uses
 
-- Node.js
+- Node.js 22+
 - ONNX Runtime Node.js binding
-- A lightweight Food-101 MobileNetV2 ONNX model
-- Local Food-101 labels
+- Sharp image preprocessing
+- Food-101 labels
 - Local starter nutrition catalog
+- STMicro Food-101 EfficientNet INT8 ONNX model
 
-The backend already calls `AI_MODEL_ENDPOINT`, so this service only needs to run beside the backend during local development.
+The old `food101-mobilenetv2.onnx` model is not used because it returns near-uniform scores and causes wrong 1% predictions.
 
 ## Setup
 
 From the project root:
 
 ```bash
-corepack enable
-corepack pnpm install
-corepack pnpm --dir ai-node run model:download
+npm run setup
+npm run setup:model
+npm run model:check
+npm run dev
 ```
 
-Create or update root `.env`:
+The model is saved here:
+
+```text
+ai-node/models/st_efficientnetlcv1_224_tfs_qdq_int8.onnx
+```
+
+Root `.env` should contain:
 
 ```env
 AI_MODEL_ENDPOINT=http://127.0.0.1:8788/predict
 AI_MODEL_API_KEY=
 AI_NODE_PORT=8788
 AI_NODE_HOST=127.0.0.1
-AI_NODE_MODEL_PATH=./models/food101-mobilenetv2.onnx
+AI_NODE_MODEL_PATH=./models/st_efficientnetlcv1_224_tfs_qdq_int8.onnx
 AI_NODE_LABELS_PATH=./data/food101-labels.json
 AI_NODE_NUTRITION_PATH=./data/nutrition-db.json
+AI_NODE_MODEL_KIND=stmicro_effnet_int8_food101
+AI_NODE_TOP_K=5
 ```
 
-Run the AI service:
+## Run only the AI service
 
 ```bash
-corepack pnpm --dir ai-node run dev
+npm run dev:ai
 ```
 
 Check it:
@@ -46,20 +56,20 @@ Check it:
 curl http://127.0.0.1:8788/health
 ```
 
-Run the app in three terminals:
+Test prediction directly:
 
 ```bash
-corepack pnpm --dir ai-node run dev
-corepack pnpm --dir backend run dev
-corepack pnpm --dir frontend run dev
+curl -X POST http://127.0.0.1:8788/predict \
+  -F "image=@sample-food.jpg"
 ```
 
 ## Endpoint contract
 
-`POST /predict` accepts `multipart/form-data` with an `image` field and returns the exact shape expected by the backend:
+`POST /predict` accepts `multipart/form-data` with an `image` field and returns the shape expected by the backend:
 
 ```json
 {
+  "success": true,
   "foodName": "Pizza",
   "confidence": 0.87,
   "nutrition": {
@@ -73,12 +83,13 @@ corepack pnpm --dir frontend run dev
   "healthBenefits": [],
   "warnings": [],
   "suggestions": [],
-  "explanation": "Pizza was identified by the local ONNX model with 87% confidence.",
-  "modelName": "mobilenet_v2_food101_onnx_node",
-  "modelVersion": "local-onnx-1"
+  "explanation": "Pizza was identified by the local Food-101 ONNX model with 87% confidence.",
+  "modelName": "stmicro_effnet_int8_food101",
+  "modelVersion": "local-onnx-food101-v2",
+  "topPredictions": []
 }
 ```
 
 ## Notes
 
-The nutrition values are starter estimates for 100 g edible portions. They are good enough for local project demonstration, but should be replaced with verified nutrition data before production or medical use.
+The model can classify Food-101 classes only. Many Bangladeshi/local dishes may be mapped to the closest Food-101 class unless you train or add a local-food model. Nutrition values are starter estimates for 100 g edible portions and should not be used as medical nutrition data.

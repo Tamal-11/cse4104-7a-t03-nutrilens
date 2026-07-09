@@ -10,7 +10,7 @@ NutriLens now uses a Cloudflare Worker for app APIs, Neon PostgreSQL for app dat
 | Database | Neon PostgreSQL |
 | Auth | Neon Auth built on Better Auth |
 | File storage | Cloudflare R2 |
-| Analysis | Mock result now, real AI later |
+| Analysis | Local Node.js ONNX AI service |
 
 ## Folder Shape
 
@@ -96,11 +96,22 @@ Protected routes:
 |---|---|---|
 | PUT | `/profile` | Update app profile fields |
 | POST | `/upload-food-image` | Store image in R2 and metadata in Neon |
-| POST | `/analyze-food` | Create a mock analysis result for an uploaded image |
+| POST | `/analyze-food` | Analyze an uploaded image through the configured AI service |
 | GET | `/analysis-history` | List current user's analyses |
 | GET | `/analysis-history/:analysisId` | Read one analysis |
 | GET | `/nutrition-lookup` | Mock nutrition lookup |
 | GET | `/health-insights` | Mock health insights |
+
+
+## One-command local demo
+
+For classroom review, the repository root has a one-command local demo mode:
+
+```bash
+npm run dev
+```
+
+This starts `backend/scripts/local-server.mjs` instead of the Cloudflare Worker. The local server implements the frontend-facing routes with in-memory demo data and local filesystem uploads, so Neon, R2, and Cloudflare credentials are not required.
 
 ## Local Development
 

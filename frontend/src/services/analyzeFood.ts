@@ -11,11 +11,11 @@ export async function analyzeFoodImage(file: File, accessToken?: string) {
     credentials: 'include',
   })
 
-  if (!uploadResponse.ok) {
-    throw new Error('Food image upload failed')
-  }
+  const uploadResult = await uploadResponse.json().catch(() => ({}))
 
-  const uploadResult = await uploadResponse.json()
+  if (!uploadResponse.ok) {
+    throw new Error(uploadResult.message || 'Food image upload failed')
+  }
 
   const response = await fetch(`${apiBaseUrl}/api/v1/analyze-food`, {
     method: 'POST',
@@ -27,9 +27,11 @@ export async function analyzeFoodImage(file: File, accessToken?: string) {
     body: JSON.stringify({ imageId: uploadResult.data.imageId }),
   })
 
+  const result = await response.json().catch(() => ({}))
+
   if (!response.ok) {
-    throw new Error('Food analysis request failed')
+    throw new Error(result.message || 'Food analysis request failed')
   }
 
-  return response.json()
+  return result
 }
