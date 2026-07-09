@@ -433,7 +433,7 @@ app.post("/api/v1/analyze-food", async (c) => {
       {
         success: false,
         message:
-          "AI_MODEL_ENDPOINT is not configured. Start the local Node AI service with: npm run dev:ai",
+          "AI_MODEL_ENDPOINT is not configured. Start the local Node AI service with: pnpm run dev:ai",
       },
       503,
     );

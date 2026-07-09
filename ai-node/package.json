@@ -2,7 +2,7 @@
   "name": "nutrilens-ai-node",
   "private": true,
   "version": "0.1.0",
-  "packageManager": "npm@10.9.0",
+  "packageManager": "pnpm@11.7.0",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",

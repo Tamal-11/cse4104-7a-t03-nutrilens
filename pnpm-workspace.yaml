@@ -3,6 +3,12 @@ packages:
   - backend
   - ai-node
 
+allowBuilds:
+  esbuild: true
+  onnxruntime-node: true
+  sharp: true
+  workerd: true
+
 onlyBuiltDependencies:
   - esbuild
   - onnxruntime-node

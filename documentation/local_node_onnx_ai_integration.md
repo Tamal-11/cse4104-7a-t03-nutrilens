@@ -13,8 +13,8 @@ ai-node/models/st_efficientnetlcv1_224_tfs_qdq_int8.onnx
 Download it intentionally once:
 
 ```bash
-npm run setup:model
-npm run model:check
+pnpm run setup:model
+pnpm run model:check
 ```
 
 The old `food101-mobilenetv2.onnx` model is not used because it returns near-uniform outputs, causing wrong 1% predictions.
@@ -22,13 +22,13 @@ The old `food101-mobilenetv2.onnx` model is not used because it returns near-uni
 ## Local startup
 
 ```bash
-npm run setup
-npm run setup:model
-npm run model:check
-npm run dev
+pnpm run setup
+pnpm run setup:model
+pnpm run model:check
+pnpm run dev
 ```
 
-`npm run dev` starts services only. It does not install dependencies or download a model.
+`pnpm run dev` starts services only. It does not install dependencies or download a model.
 
 ## Environment
 
