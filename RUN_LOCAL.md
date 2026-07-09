@@ -1,19 +1,19 @@
 # Run NutriLens Locally with Real ONNX Food Detection
 
-This version does **not** install packages or download models inside `npm run dev`.
+This version does **not** install packages or download models inside `pnpm run dev`.
 Setup is explicit, so there are no surprise downloads every time the app starts.
 
 ## 1. Install dependencies once
 
 ```bash
-npm run setup
+pnpm run setup
 ```
 
 ## 2. Download the working Food-101 ONNX model once
 
 ```bash
-npm run setup:model
-npm run model:check
+pnpm run setup:model
+pnpm run model:check
 ```
 
 The working model is saved here:
@@ -27,7 +27,7 @@ The old `food101-mobilenetv2.onnx` model was removed from the default path becau
 ## 3. Start the app
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 Then open:

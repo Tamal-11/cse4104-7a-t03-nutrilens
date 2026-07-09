@@ -18,10 +18,10 @@ The old `food101-mobilenetv2.onnx` model is not used because it returns near-uni
 From the project root:
 
 ```bash
-npm run setup
-npm run setup:model
-npm run model:check
-npm run dev
+pnpm run setup
+pnpm run setup:model
+pnpm run model:check
+pnpm run dev
 ```
 
 The model is saved here:
@@ -47,7 +47,7 @@ AI_NODE_TOP_K=5
 ## Run only the AI service
 
 ```bash
-npm run dev:ai
+pnpm run dev:ai
 ```
 
 Check it:

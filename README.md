@@ -2,7 +2,7 @@
 
 NutriLens is an AI based food recognition and nutrition analysis system for CSE4104-7A-T03.
 
-The project has a local demo mode using npm, a local API, and a local ONNX Food-101 model. Setup is explicit, so `npm run dev` does not install packages or download random files.
+The project has a local demo mode using pnpm, a local API, and a local ONNX Food-101 model. Setup is explicit, so `pnpm run dev` does not install packages or download random files.
 
 | Service | URL | Purpose |
 |---|---|---|
@@ -15,47 +15,42 @@ The project has a local demo mode using npm, a local API, and a local ONNX Food-
 Requirements:
 
 - Node.js 22 or newer
+- pnpm 11 or newer
 - Internet connection only for the one-time setup commands
 
 First install dependencies once:
 
 ```bash
-npm run setup
+pnpm run setup
 ```
 
 Then download the working Food-101 ONNX model once:
 
 ```bash
-npm run setup:model
-npm run model:check
+pnpm run setup:model
+pnpm run model:check
 ```
 
 Then start the app:
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
-`npm run dev` only starts the services. It does not run `npm install` and does not download models. If dependencies or the model are missing, it prints the exact setup command to run.
+`pnpm run dev` only starts the services. It does not run `pnpm install` and does not download models. If dependencies or the model are missing, it prints the exact setup command to run.
 
 Press `Ctrl+C` to stop all services.
 
 
-## Windows / Corepack note
+## Package manager note
 
-This package intentionally uses plain npm. It does not require PNPM or Corepack, so it avoids the common Windows error:
-
-```text
-Cannot find matching keyid
-```
-
-If you previously ran an older PNPM/Corepack version of this project, clean and reinstall once:
+This repository uses a pnpm workspace and a single root `pnpm-lock.yaml`. If you previously installed dependencies with npm, clean and reinstall once:
 
 ```bash
-npm run clean:deps
-npm run setup
-npm run setup:model
-npm run dev
+pnpm run clean:deps
+pnpm run setup
+pnpm run setup:model
+pnpm run dev
 ```
 
 
@@ -75,15 +70,15 @@ Local demo mode does not require Neon Auth. You can register or sign in with any
 ## Useful commands
 
 ```bash
-npm run setup            # install dependencies once
-npm run setup:model      # download working Food-101 ONNX model once
-npm run model:check      # verify the ONNX model returns usable scores
-npm run dev              # start local demo, no downloads
-npm run typecheck        # frontend + backend + AI TypeScript checks
-npm run dev:ai           # local ONNX AI service only
-npm run dev:api:local    # local demo API only
-npm run dev:frontend     # frontend only
-npm run db:migrate       # production Neon migrations
+pnpm run setup            # install dependencies once
+pnpm run setup:model      # download working Food-101 ONNX model once
+pnpm run model:check      # verify the ONNX model returns usable scores
+pnpm run dev              # start local demo, no downloads
+pnpm run typecheck        # frontend + backend + AI TypeScript checks
+pnpm run dev:ai           # local ONNX AI service only
+pnpm run dev:api:local    # local demo API only
+pnpm run dev:frontend     # frontend only
+pnpm run db:migrate       # production Neon migrations
 ```
 
 ## Project structure

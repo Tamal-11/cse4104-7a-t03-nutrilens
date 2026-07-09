@@ -11,6 +11,6 @@ ai-node/
 Use this instead:
 
 ```bash
-npm run model:download
-npm run dev:ai
+pnpm run model:download
+pnpm run dev:ai
 ```
