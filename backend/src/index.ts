@@ -13,9 +13,13 @@ type Env = {
     AI_MODEL_API_KEY?: string;
     ADMIN_EMAILS?: string;
     MAX_IMAGE_UPLOAD_BYTES?: string;
+    ALLOWED_ORIGINS?: string;
+    AUTH_RATE_LIMIT: RateLimit;
+    API_RATE_LIMIT: RateLimit;
   };
   Variables: {
     user: AuthUser;
+    requestId: string;
   };
 };
 
@@ -29,16 +33,30 @@ const app = new Hono<Env>();
 
 const DEFAULT_MAX_IMAGE_UPLOAD_BYTES = 8 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const ALLOWED_METHODS = ["GET", "POST", "PUT", "OPTIONS"];
+
+app.use("*", async (c, next) => {
+  const requestId = c.req.header("X-Request-ID")?.slice(0, 128) || crypto.randomUUID();
+  c.set("requestId", requestId);
+  c.header("X-Request-ID", requestId);
+  await next();
+});
 
 app.use(
   "*",
   cors({
-    origin: (origin) => origin || "*",
+    origin: (origin, c) => isAllowedOrigin(origin, c.env.ALLOWED_ORIGINS),
     allowHeaders: ["Authorization", "Content-Type"],
-    allowMethods: ["GET", "POST", "PUT", "OPTIONS"],
+    allowMethods: ALLOWED_METHODS,
     credentials: true,
   }),
 );
+
+app.onError((error, c) => {
+  const requestId = c.get("requestId") || crypto.randomUUID();
+  console.error(JSON.stringify({ event: "unhandled_error", requestId, path: c.req.path, message: error instanceof Error ? error.message : "Unknown error" }));
+  return c.json({ success: false, message: "An unexpected error occurred.", requestId }, 500);
+});
 
 app.get("/", (c) =>
   c.json({
@@ -78,9 +96,7 @@ app.get("/health", async (c) => {
         database: {
           status: "down",
           message:
-            error instanceof Error
-              ? error.message
-              : "Database connection failed.",
+            "Database connection failed.",
         },
         responseTimeMs: Date.now() - startedAt,
         timestamp: new Date().toISOString(),
@@ -138,9 +154,11 @@ const authRoutes: Record<string, string> = {
 };
 
 app.all("/api/auth/*", async (c) => {
+  const rateLimitResponse = await enforceAuthRateLimit(c);
+  if (rateLimitResponse) return rateLimitResponse;
   if (!c.env.NEON_AUTH_URL) {
     return c.json(
-      { success: false, message: "Authentication service is not configured." },
+      { success: false, message: "Authentication service is unavailable." },
       500,
     );
   }
@@ -208,6 +226,8 @@ app.use("/api/v1/*", async (c, next) => {
   }
 
   c.set("user", user);
+  const rateLimitResponse = await enforceApiRateLimit(c, user.id);
+  if (rateLimitResponse) return rateLimitResponse;
   await ensureProfile(c.env.DATABASE_URL, user);
   if (!(await isAccountActive(c.env.DATABASE_URL, user.id))) {
     return c.json(
@@ -265,15 +285,9 @@ app.get("/api/v1/profile", async (c) => {
 
 app.post("/api/v1/profile", async (c) => {
   const user = c.get("user");
-  const body = await c.req.json<{
-    fullName?: string;
-    age?: number;
-    gender?: string;
-    heightCm?: number;
-    weightKg?: number;
-    healthConditions?: string[];
-    dietaryPreferences?: string[];
-  }>();
+  const parsed = await parseProfileBody(c.req.raw);
+  if (!parsed.ok) return validationError(c, parsed.message);
+  const body = parsed.value;
   const fullName =
     body.fullName?.trim() || user.name || user.email.split("@")[0];
   const sql = neon(c.env.DATABASE_URL);
@@ -325,7 +339,7 @@ app.post("/api/v1/upload-food-image", async (c) => {
     return c.json({ success: false, message: "Image file is required." }, 400);
   }
 
-  const uploadError = validateUploadedImage(
+  const uploadError = await validateUploadedImage(
     image,
     c.env.MAX_IMAGE_UPLOAD_BYTES,
   );
@@ -333,6 +347,8 @@ app.post("/api/v1/upload-food-image", async (c) => {
     return c.json({ success: false, message: uploadError }, 400);
   }
 
+  const formError = validateImageForm(form);
+  if (formError) return validationError(c, formError);
   const mealType = stringValue(form.get("mealType"));
   const notes = stringValue(form.get("notes"));
   const imageId = crypto.randomUUID();
@@ -382,6 +398,7 @@ app.post("/api/v1/upload-food-image", async (c) => {
 
 app.get("/api/v1/food-images/:imageId", async (c) => {
   const user = c.get("user");
+  if (!isUuid(c.req.param("imageId"))) return validationError(c, "imageId must be a UUID.");
   const sql = neon(c.env.DATABASE_URL);
   const rows = await sql`select object_key, mime_type from food_images
     where id = ${c.req.param("imageId")} and user_id = ${user.id} limit 1`;
@@ -406,11 +423,9 @@ app.get("/api/v1/food-images/:imageId", async (c) => {
 
 app.post("/api/v1/analyze-food", async (c) => {
   const user = c.get("user");
-  const body = await c.req.json<{ imageId?: string }>();
-
-  if (!body.imageId) {
-    return c.json({ success: false, message: "imageId is required." }, 400);
-  }
+  const parsed = await parseImageIdBody(c.req.raw);
+  if (!parsed.ok) return validationError(c, parsed.message);
+  const body = parsed.value;
 
   const sql = neon(c.env.DATABASE_URL);
   const imageRows = await sql`
@@ -432,8 +447,7 @@ app.post("/api/v1/analyze-food", async (c) => {
     return c.json(
       {
         success: false,
-        message:
-          "AI_MODEL_ENDPOINT is not configured. Start the local Node AI service with: pnpm run dev:ai",
+        message: "Food analysis service is unavailable.",
       },
       503,
     );
@@ -468,8 +482,7 @@ app.post("/api/v1/analyze-food", async (c) => {
     return c.json(
       {
         success: false,
-        message:
-          "Could not reach the local AI service. Make sure ai-node is running on the AI_MODEL_ENDPOINT URL.",
+        message: "Food analysis service is unavailable.",
       },
       502,
     );
@@ -482,18 +495,17 @@ app.post("/api/v1/analyze-food", async (c) => {
       {
         success: false,
         message:
-          prediction?.message ||
-          `Food analysis service failed (${modelResponse.status}).`,
+          "Food analysis service is unavailable.",
       },
       502,
     );
   }
-  const validationError = validatePrediction(prediction);
-  if (validationError) {
+  const modelValidationError = validatePrediction(prediction);
+  if (modelValidationError) {
     return c.json(
       {
         success: false,
-        message: `Invalid analysis response: ${validationError}`,
+        message: "Food analysis service returned an invalid response.",
       },
       502,
     );
@@ -604,6 +616,7 @@ app.get("/api/v1/analysis-history", async (c) => {
 
 app.get("/api/v1/analysis-history/:analysisId", async (c) => {
   const user = c.get("user");
+  if (!isUuid(c.req.param("analysisId"))) return validationError(c, "analysisId must be a UUID.");
   const analysisId = c.req.param("analysisId");
   const sql = neon(c.env.DATABASE_URL);
   const rows = await sql`
@@ -757,7 +770,10 @@ app.put("/api/v1/admin/users/:userId/status", async (c) => {
       403,
     );
   const targetUserId = c.req.param("userId");
-  const body = await c.req.json<{ status?: string }>();
+  if (!isUuid(targetUserId)) return validationError(c, "userId must be a UUID.");
+  const parsed = await parseAccountStatusBody(c.req.raw);
+  if (!parsed.ok) return validationError(c, parsed.message);
+  const body = parsed.value;
   if (body.status !== "Active" && body.status !== "Suspended") {
     return c.json(
       { success: false, message: "status must be Active or Suspended." },
@@ -862,13 +878,17 @@ function isUploadedFile(value: File | string | null): value is File {
   return typeof value === "object" && value !== null && "stream" in value;
 }
 
-function validateUploadedImage(image: File, configuredMaxSize?: string) {
+async function validateUploadedImage(image: File, configuredMaxSize?: string) {
   const maxSize = Number(configuredMaxSize || DEFAULT_MAX_IMAGE_UPLOAD_BYTES);
   if (!ALLOWED_IMAGE_TYPES.has(image.type)) {
     return "Only JPG, PNG, and WebP food images are supported.";
   }
   if (Number.isFinite(maxSize) && image.size > maxSize) {
     return `Image is too large. Maximum allowed size is ${Math.round(maxSize / 1024 / 1024)} MB.`;
+  }
+  const signature = new Uint8Array(await image.slice(0, 12).arrayBuffer());
+  if (!matchesImageSignature(signature, image.type)) {
+    return "The file contents do not match the declared image type.";
   }
   return null;
 }
@@ -929,6 +949,128 @@ function isAdmin(user: Pick<AuthUser, "email">, configured?: string) {
     .map((email) => email.trim().toLowerCase())
     .filter(Boolean);
   return admins.includes(user.email.toLowerCase());
+}
+
+type ParseResult<T> = { ok: true; value: T } | { ok: false; message: string };
+type ProfileInput = {
+  fullName?: string;
+  age?: number;
+  gender?: "Male" | "Female" | "Other";
+  heightCm?: number;
+  weightKg?: number;
+  healthConditions?: string[];
+  dietaryPreferences?: string[];
+};
+
+function validationError(c: { json: (body: object, status: 400) => Response }, message: string) {
+  return c.json({ success: false, message }, 400);
+}
+
+function isAllowedOrigin(origin: string, configured?: string) {
+  if (!origin) return "";
+  const allowed = (configured ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return allowed.includes(origin) ? origin : "";
+}
+
+async function enforceAuthRateLimit(c: { env: Env["Bindings"]; req: { raw: Request }; get: (key: "requestId") => string }) {
+  const route = c.req.raw ? new URL(c.req.raw.url).pathname : "auth";
+  const ip = c.req.raw.headers.get("CF-Connecting-IP") ?? "unknown";
+  const ipResult = await c.env.AUTH_RATE_LIMIT.limit({ key: `auth:ip:${ip}:${route}` });
+  if (!ipResult.success) return tooManyRequests(c.get("requestId"));
+
+  if (c.req.raw.method !== "POST") return null;
+  const body = await c.req.raw.clone().json<{ email?: unknown }>().catch(() => null);
+  if (typeof body?.email !== "string" || !body.email.trim()) return null;
+  const accountKey = await hashRateLimitKey(body.email.trim().toLowerCase());
+  const accountResult = await c.env.AUTH_RATE_LIMIT.limit({ key: `auth:account:${accountKey}:${route}` });
+  return accountResult.success ? null : tooManyRequests(c.get("requestId"));
+}
+
+async function enforceApiRateLimit(c: { env: Env["Bindings"]; get: (key: "requestId") => string }, userId: string) {
+  const result = await c.env.API_RATE_LIMIT.limit({ key: `api:user:${userId}` });
+  return result.success ? null : tooManyRequests(c.get("requestId"));
+}
+
+function tooManyRequests(requestId: string) {
+  return new Response(JSON.stringify({ success: false, message: "Too many requests. Try again later.", requestId }), {
+    status: 429,
+    headers: { "Content-Type": "application/json", "Retry-After": "60", "RateLimit-Limit": "10", "RateLimit-Remaining": "0", "RateLimit-Reset": "60" },
+  });
+}
+
+async function hashRateLimitKey(value: string) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function parseJsonObject(request: Request): Promise<ParseResult<Record<string, unknown>>> {
+  const body = await request.json<unknown>().catch(() => null);
+  if (!body || typeof body !== "object" || Array.isArray(body)) return { ok: false, message: "Request body must be a JSON object." };
+  return { ok: true, value: body as Record<string, unknown> };
+}
+
+async function parseProfileBody(request: Request): Promise<ParseResult<ProfileInput>> {
+  const parsed = await parseJsonObject(request);
+  if (!parsed.ok) return parsed;
+  const allowed = new Set(["fullName", "age", "gender", "heightCm", "weightKg", "healthConditions", "dietaryPreferences"]);
+  if (Object.keys(parsed.value).some((key) => !allowed.has(key))) return { ok: false, message: "Request contains an unsupported field." };
+  const value = parsed.value;
+  if (Object.keys(value).length === 0) return { ok: false, message: "Request body must not be empty." };
+  if (value.fullName !== undefined && (typeof value.fullName !== "string" || value.fullName.trim().length < 1 || value.fullName.trim().length > 100)) return { ok: false, message: "fullName must be between 1 and 100 characters." };
+  if (value.age !== undefined && (!isNumberInRange(value.age, 1, 120))) return { ok: false, message: "age must be a number between 1 and 120." };
+  if (value.gender !== undefined && value.gender !== "Male" && value.gender !== "Female" && value.gender !== "Other") return { ok: false, message: "gender is invalid." };
+  if (value.heightCm !== undefined && (!isNumberInRange(value.heightCm, 30, 300))) return { ok: false, message: "heightCm must be a number between 30 and 300." };
+  if (value.weightKg !== undefined && (!isNumberInRange(value.weightKg, 2, 500))) return { ok: false, message: "weightKg must be a number between 2 and 500." };
+  for (const field of ["healthConditions", "dietaryPreferences"] as const) {
+    if (value[field] !== undefined && !isStringArray(value[field], 20, 100)) return { ok: false, message: `${field} must contain at most 20 strings of 100 characters or fewer.` };
+  }
+  return { ok: true, value: value as ProfileInput };
+}
+
+async function parseImageIdBody(request: Request): Promise<ParseResult<{ imageId: string }>> {
+  const parsed = await parseJsonObject(request);
+  if (!parsed.ok) return parsed;
+  if (Object.keys(parsed.value).length !== 1 || !isUuid(parsed.value.imageId)) return { ok: false, message: "imageId must be a UUID." };
+  return { ok: true, value: { imageId: parsed.value.imageId } };
+}
+
+async function parseAccountStatusBody(request: Request): Promise<ParseResult<{ status: "Active" | "Suspended" }>> {
+  const parsed = await parseJsonObject(request);
+  if (!parsed.ok) return parsed;
+  if (Object.keys(parsed.value).length !== 1 || (parsed.value.status !== "Active" && parsed.value.status !== "Suspended")) return { ok: false, message: "status must be Active or Suspended." };
+  return { ok: true, value: { status: parsed.value.status } };
+}
+
+function validateImageForm(form: FormData) {
+  const allowed = new Set(["image", "mealType", "notes"]);
+  for (const [key, value] of form.entries()) {
+    if (!allowed.has(key)) return "Upload contains an unsupported field.";
+    if (key === "mealType" && (typeof value !== "string" || value.length > 40)) return "mealType must be at most 40 characters.";
+    if (key === "notes" && (typeof value !== "string" || value.length > 2_000)) return "notes must be at most 2000 characters.";
+  }
+  return null;
+}
+
+function isNumberInRange(value: unknown, min: number, max: number): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
+}
+
+function isStringArray(value: unknown, maxItems: number, maxLength: number): value is string[] {
+  return Array.isArray(value) && value.length <= maxItems && value.every((item) => typeof item === "string" && item.trim().length > 0 && item.length <= maxLength);
+}
+
+function isUuid(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function matchesImageSignature(signature: Uint8Array, type: string) {
+  if (type === "image/jpeg") return signature.length >= 3 && signature[0] === 0xff && signature[1] === 0xd8 && signature[2] === 0xff;
+  if (type === "image/png") return signature.length >= 8 && [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((byte, index) => signature[index] === byte);
+  return signature.length >= 12 && String.fromCharCode(...signature.slice(0, 4)) === "RIFF" && String.fromCharCode(...signature.slice(8, 12)) === "WEBP";
 }
 
 export default app;
