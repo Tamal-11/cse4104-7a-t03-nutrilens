@@ -1,6 +1,6 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
-import { cors } from 'hono/cors';
+import { timingSafeEqual } from 'node:crypto';
 import { config } from 'dotenv';
 import * as ort from 'onnxruntime-node';
 import sharp from 'sharp';
@@ -22,17 +22,17 @@ const safeModelPath = requestedModelPath.includes('food101-mobilenetv2.onnx')
 
 const env = {
   port: Number(process.env.AI_NODE_PORT || 8788),
-  host: process.env.AI_NODE_HOST || '127.0.0.1',
+  host: ['127.0.0.1', '::1'].includes(process.env.AI_NODE_HOST || '') ? process.env.AI_NODE_HOST! : '127.0.0.1',
   modelPath: resolveFromPackage(safeModelPath),
   modelKind: process.env.AI_NODE_MODEL_KIND || 'stmicro_effnet_int8_food101',
   labelsPath: resolveFromPackage(process.env.AI_NODE_LABELS_PATH || './data/food101-labels.json'),
   nutritionPath: resolveFromPackage(process.env.AI_NODE_NUTRITION_PATH || './data/nutrition-db.json'),
   topK: Number(process.env.AI_NODE_TOP_K || 5),
   minOutputDynamicRange: Number(process.env.AI_NODE_MIN_OUTPUT_DYNAMIC_RANGE || 1e-5),
+  apiKey: process.env.AI_MODEL_API_KEY || '',
 };
 
 const app = new Hono();
-app.use('*', cors({ origin: '*', allowMethods: ['GET', 'POST', 'OPTIONS'] }));
 
 type NutritionEntry = {
   foodName: string;
@@ -85,7 +85,6 @@ app.get('/health', async (c) => {
   const modelFileExists = existsSync(env.modelPath);
   const modelFileSize = modelFileExists ? statSync(env.modelPath).size : 0;
   let modelStatus = 'not_loaded';
-  let modelError: string | null = null;
   let input: unknown = null;
   let output: unknown = null;
 
@@ -98,22 +97,17 @@ app.get('/health', async (c) => {
       output = session.outputMetadata[0] ?? null;
       if (session.inputNames.length === 0 || session.outputNames.length === 0) {
         modelStatus = 'invalid';
-        modelError = 'Model has no input or output names.';
       }
     } catch (error) {
       modelStatus = 'error';
-      modelError = error instanceof Error ? error.message : 'Unable to load ONNX model.';
+      console.error('Model health check failed', error);
     }
   }
 
   return c.json({
     status: modelFileExists && modelStatus === 'loaded' && labels.length === 101 ? 'ready' : 'not_ready',
     modelKind: env.modelKind,
-    modelPath: env.modelPath,
-    modelFileExists,
-    modelFileSize,
     modelStatus,
-    modelError,
     labelsCount: labels.length,
     nutritionEntries: Object.keys(nutrition).length,
     input,
@@ -128,11 +122,14 @@ app.get('/labels', async (c) => {
 
 app.post('/predict', async (c) => {
   try {
+    if (!isAuthorized(c.req.header('Authorization'))) {
+      return c.json({ success: false, message: 'Authentication required.' }, 401);
+    }
     if (!existsSync(env.modelPath)) {
       return c.json(
         {
           success: false,
-          message: `Working Food-101 ONNX model was not found at ${env.modelPath}. Run: pnpm run setup:model`,
+          message: 'Food analysis service is unavailable.',
         },
         503,
       );
@@ -143,6 +140,9 @@ app.post('/predict', async (c) => {
 
     if (!isFileLike(image)) {
       return c.json({ success: false, message: 'image file is required.' }, 400);
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(image.type) || image.size > 8 * 1024 * 1024) {
+      return c.json({ success: false, message: 'Upload must be a supported image no larger than 8 MB.' }, 400);
     }
 
     const [session, labels, nutritionDb] = await Promise.all([loadModel(), loadLabels(), loadNutrition()]);
@@ -207,7 +207,7 @@ app.post('/predict', async (c) => {
     return c.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : 'Prediction failed.',
+        message: 'Prediction failed.',
       },
       500,
     );
@@ -467,6 +467,14 @@ function resolveFromPackage(value: string) {
 
 function isFileLike(value: FormDataEntryValue | null): value is File {
   return typeof value === 'object' && value !== null && 'arrayBuffer' in value && 'name' in value;
+}
+
+function isAuthorized(authorization: string | undefined) {
+  if (!env.apiKey) return true;
+  const supplied = authorization?.replace(/^Bearer\s+/i, '') ?? '';
+  const expectedBytes = Buffer.from(env.apiKey);
+  const suppliedBytes = Buffer.from(supplied);
+  return expectedBytes.length === suppliedBytes.length && timingSafeEqual(expectedBytes, suppliedBytes);
 }
 
 function round(value: number, digits: number) {

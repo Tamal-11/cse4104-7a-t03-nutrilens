@@ -12,7 +12,7 @@ const repoRoot = path.resolve(__dirname, '../..');
 config({ path: path.join(repoRoot, '.env') });
 
 const PORT = Number(process.env.LOCAL_API_PORT || 8787);
-const HOST = process.env.LOCAL_API_HOST || '127.0.0.1';
+const HOST = '127.0.0.1';
 const AI_MODEL_ENDPOINT = process.env.AI_MODEL_ENDPOINT || 'http://127.0.0.1:8788/predict';
 const AI_MODEL_API_KEY = process.env.AI_MODEL_API_KEY || '';
 const uploadDir = path.join(repoRoot, '.local-storage', 'uploads');
@@ -59,7 +59,7 @@ const logs = ['Local demo API started. Cloud database and R2 are not required in
 app.use(
   '*',
   cors({
-    origin: (origin) => origin || 'http://localhost:3000',
+    origin: (origin) => ['http://localhost:3000'].includes(origin) ? origin : '',
     allowHeaders: ['Authorization', 'Content-Type'],
     allowMethods: ['GET', 'POST', 'PUT', 'OPTIONS'],
     credentials: true,
@@ -216,15 +216,12 @@ app.post('/api/v1/analyze-food', async (c) => {
   try {
     prediction = await requestPrediction(image);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Local ONNX AI service failed.';
     console.error('AI request failed.', error);
-    logs.unshift(`AI analysis failed for ${image.fileName}: ${message}`);
+    logs.unshift(`AI analysis failed for ${image.fileName}.`);
     return c.json(
       {
         success: false,
-        message: `Food detection failed: ${message}`,
-        details: 'The app now requires the local ONNX Food-101 model instead of returning fake demo results. Start the AI service with pnpm run dev or pnpm run dev:ai.',
-        aiEndpoint: AI_MODEL_ENDPOINT,
+        message: 'Food detection service is unavailable.',
       },
       503,
     );
