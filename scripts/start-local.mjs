@@ -13,7 +13,7 @@ function ensureNodeVersion() {
   const major = Number(process.versions.node.split('.')[0]);
   if (!Number.isFinite(major) || major < 22) {
     console.error(`Node.js 22 or newer is required. Current version: ${process.version}`);
-    console.error('Install Node.js 22+, then run: pnpm run setup');
+    console.error('Install Node.js 22+, then run: npm run setup');
     process.exit(1);
   }
 }
@@ -45,7 +45,7 @@ function checkDependencies() {
 
   if (missing.length > 0) {
     console.error(`Missing dependencies for: ${missing.join(', ')}`);
-    console.error('Run this once first: pnpm run setup');
+    console.error('Run this once first: npm run setup');
     process.exit(1);
   }
 }
@@ -60,7 +60,7 @@ function checkModel() {
   if (existsSync(oldBrokenModel)) {
     console.error('Found old food101-mobilenetv2.onnx, but that model returns near-uniform scores and is not used.');
   }
-  console.error('Run this once to download the correct local model: pnpm run setup:model');
+  console.error('Run this once to download the correct local model: npm run setup:model');
   process.exit(1);
 }
 
@@ -124,9 +124,9 @@ const commonEnv = {
   LOCAL_DEMO_MODE: 'true',
 };
 
-start('AI service', 'pnpm --filter nutrilens-ai-node dev', commonEnv, true);
-start('Local API', 'pnpm --filter nutrilens-backend dev:local', commonEnv, true);
-start('Frontend', 'pnpm --filter nutrilens-frontend dev', {
+start('AI service', 'npm --prefix ai-node run dev', commonEnv, true);
+start('Local API', 'npm --prefix backend run dev:local', commonEnv, true);
+start('Frontend', 'npm --prefix frontend run dev', {
   ...commonEnv,
   VITE_API_BASE_URL: 'http://localhost:8787',
 }, true);

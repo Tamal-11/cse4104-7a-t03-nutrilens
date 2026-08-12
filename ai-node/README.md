@@ -18,10 +18,11 @@ The old `food101-mobilenetv2.onnx` model is not used because it returns near-uni
 From the project root:
 
 ```bash
-pnpm run setup
-pnpm run setup:model
-pnpm run model:check
-pnpm run dev
+npm run setup
+npm run setup:model
+npm run model:check
+npm run inference:check
+npm run dev
 ```
 
 The model is saved here:
@@ -44,10 +45,33 @@ AI_NODE_MODEL_KIND=stmicro_effnet_int8_food101
 AI_NODE_TOP_K=5
 ```
 
+## Model-aligned preprocessing
+
+The bundled model is `st_efficientnetlcv1_224_tfs_qdq_int8.onnx`. Its published STMicroelectronics configuration specifies:
+
+- input size: `224 x 224 x 3` RGB
+- resizing: `aspect_ratio: fit`
+- interpolation: `nearest`
+- rescaling: `scale: 1/255.0`, `offset: 0.0`
+
+NutriLens therefore rotates according to image metadata, converts to sRGB, removes alpha, resizes directly to the model dimensions with nearest-neighbor interpolation, and converts float input values to `[0, 1]`. It intentionally does **not** use ImageNet mean/std normalization and does **not** use center-crop preprocessing.
+
+Upstream model configuration:
+
+`https://github.com/STMicroelectronics/stm32ai-modelzoo/blob/main/image_classification/efficientnet/ST_pretrainedmodel_public_dataset/food101/st_efficientnetlcv1_224_tfs/st_efficientnetlcv1_224_tfs_config.yaml`
+
+Regression check:
+
+```bash
+npm run inference:check
+```
+
+This builds the AI service, starts it on a temporary local port, verifies the `/health` preprocessing metadata, and checks representative hamburger and sushi images against minimum-confidence thresholds.
+
 ## Run only the AI service
 
 ```bash
-pnpm run dev:ai
+npm run dev:ai
 ```
 
 Check it:
@@ -85,7 +109,7 @@ curl -X POST http://127.0.0.1:8788/predict \
   "suggestions": [],
   "explanation": "Pizza was identified by the local Food-101 ONNX model with 87% confidence.",
   "modelName": "stmicro_effnet_int8_food101",
-  "modelVersion": "local-onnx-food101-v2",
+  "modelVersion": "local-onnx-food101-v3",
   "topPredictions": []
 }
 ```

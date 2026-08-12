@@ -47,14 +47,14 @@ pnpm --dir backend exec wrangler secret put NEON_AUTH_URL
 ```
 
 Set `R2_PUBLIC_BASE_URL` in `wrangler.toml` or in the Cloudflare dashboard.
-`pnpm run dev:backend` loads local Worker bindings directly from the root `.env`.
+`pnpm dev:backend` loads local Worker bindings directly from the root `.env`.
 
 ## Database Setup
 
 From the repository root, run all pending SQL migrations against Neon:
 
 ```bash
-pnpm run db:migrate
+pnpm db:migrate
 ```
 
 Applied files are recorded in `schema_migrations`. The app schema stores profile,
@@ -108,7 +108,7 @@ Protected routes:
 For classroom review, the repository root has a one-command local demo mode:
 
 ```bash
-pnpm run dev
+npm run dev
 ```
 
 This starts `backend/scripts/local-server.mjs` instead of the Cloudflare Worker. The local server implements the frontend-facing routes with in-memory demo data and local filesystem uploads, so Neon, R2, and Cloudflare credentials are not required.
@@ -121,7 +121,7 @@ Install dependencies from the repo root, then run Wrangler:
 
 ```bash
 pnpm install
-pnpm run dev:backend
+pnpm dev:backend
 ```
 
 The local API listens at `http://localhost:8787`. Wrangler prints the URL after

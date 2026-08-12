@@ -45,9 +45,11 @@ function ensureLocalEnv() {
 ensureNodeVersion();
 ensureLocalEnv();
 
-console.log('Installing project dependencies once with pnpm...');
-run('pnpm install');
+console.log('Installing project dependencies once with npm ci...');
+run('npm ci --prefix backend');
+run('npm ci --prefix frontend');
+run('npm ci --prefix ai-node');
 
 console.log('\nDependency setup complete.');
-console.log('Next: run pnpm run setup:model once to download the working Food-101 ONNX model.');
-console.log('After that, run pnpm run dev.');
+console.log('Next: run npm run setup:model once to download the working Food-101 ONNX model.');
+console.log('After that, run npm run dev.');

@@ -13,4 +13,4 @@ for (const path of [
   rmSync(path, { recursive: true, force: true });
 }
 
-console.log('Removed installed dependencies and npm lock files. Run pnpm run setup before starting.');
+console.log('Removed installed dependencies and npm lock files. Run npm run dev to reinstall and start.');

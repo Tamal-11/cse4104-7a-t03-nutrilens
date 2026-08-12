@@ -1,6 +1,6 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
-import { timingSafeEqual } from 'node:crypto';
+import { cors } from 'hono/cors';
 import { config } from 'dotenv';
 import * as ort from 'onnxruntime-node';
 import sharp from 'sharp';
@@ -22,17 +22,24 @@ const safeModelPath = requestedModelPath.includes('food101-mobilenetv2.onnx')
 
 const env = {
   port: Number(process.env.AI_NODE_PORT || 8788),
-  host: ['127.0.0.1', '::1'].includes(process.env.AI_NODE_HOST || '') ? process.env.AI_NODE_HOST! : '127.0.0.1',
+  host: process.env.AI_NODE_HOST || '127.0.0.1',
   modelPath: resolveFromPackage(safeModelPath),
   modelKind: process.env.AI_NODE_MODEL_KIND || 'stmicro_effnet_int8_food101',
   labelsPath: resolveFromPackage(process.env.AI_NODE_LABELS_PATH || './data/food101-labels.json'),
   nutritionPath: resolveFromPackage(process.env.AI_NODE_NUTRITION_PATH || './data/nutrition-db.json'),
   topK: Number(process.env.AI_NODE_TOP_K || 5),
   minOutputDynamicRange: Number(process.env.AI_NODE_MIN_OUTPUT_DYNAMIC_RANGE || 1e-5),
-  apiKey: process.env.AI_MODEL_API_KEY || '',
 };
 
+const MODEL_PREPROCESSING = {
+  colorMode: 'rgb',
+  resize: 'fit',
+  interpolation: 'nearest',
+  rescaling: '1/255',
+} as const;
+
 const app = new Hono();
+app.use('*', cors({ origin: '*', allowMethods: ['GET', 'POST', 'OPTIONS'] }));
 
 type NutritionEntry = {
   foodName: string;
@@ -85,6 +92,7 @@ app.get('/health', async (c) => {
   const modelFileExists = existsSync(env.modelPath);
   const modelFileSize = modelFileExists ? statSync(env.modelPath).size : 0;
   let modelStatus = 'not_loaded';
+  let modelError: string | null = null;
   let input: unknown = null;
   let output: unknown = null;
 
@@ -97,21 +105,27 @@ app.get('/health', async (c) => {
       output = session.outputMetadata[0] ?? null;
       if (session.inputNames.length === 0 || session.outputNames.length === 0) {
         modelStatus = 'invalid';
+        modelError = 'Model has no input or output names.';
       }
     } catch (error) {
       modelStatus = 'error';
-      console.error('Model health check failed', error);
+      modelError = error instanceof Error ? error.message : 'Unable to load ONNX model.';
     }
   }
 
   return c.json({
     status: modelFileExists && modelStatus === 'loaded' && labels.length === 101 ? 'ready' : 'not_ready',
     modelKind: env.modelKind,
+    modelPath: env.modelPath,
+    modelFileExists,
+    modelFileSize,
     modelStatus,
+    modelError,
     labelsCount: labels.length,
     nutritionEntries: Object.keys(nutrition).length,
     input,
     output,
+    preprocessing: MODEL_PREPROCESSING,
   });
 });
 
@@ -122,14 +136,11 @@ app.get('/labels', async (c) => {
 
 app.post('/predict', async (c) => {
   try {
-    if (!isAuthorized(c.req.header('Authorization'))) {
-      return c.json({ success: false, message: 'Authentication required.' }, 401);
-    }
     if (!existsSync(env.modelPath)) {
       return c.json(
         {
           success: false,
-          message: 'Food analysis service is unavailable.',
+          message: `Working Food-101 ONNX model was not found at ${env.modelPath}. Run: npm run setup:model`,
         },
         503,
       );
@@ -140,9 +151,6 @@ app.post('/predict', async (c) => {
 
     if (!isFileLike(image)) {
       return c.json({ success: false, message: 'image file is required.' }, 400);
-    }
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(image.type) || image.size > 8 * 1024 * 1024) {
-      return c.json({ success: false, message: 'Upload must be a supported image no larger than 8 MB.' }, 400);
     }
 
     const [session, labels, nutritionDb] = await Promise.all([loadModel(), loadLabels(), loadNutrition()]);
@@ -158,13 +166,13 @@ app.post('/predict', async (c) => {
 
     const scores = Array.from(outputTensor.data as Float32Array | Int32Array | number[]).map(Number);
     if (scores.length !== labels.length) {
-      throw new Error(`Model output class count (${scores.length}) does not match labels count (${labels.length}). Use the Food-101 ONNX model from pnpm run setup:model.`);
+      throw new Error(`Model output class count (${scores.length}) does not match labels count (${labels.length}). Use the Food-101 ONNX model from npm run setup:model.`);
     }
 
     const stats = scoreStats(scores);
     if (!Number.isFinite(stats.range) || stats.range < env.minOutputDynamicRange) {
       throw new Error(
-        `ONNX model returned near-uniform scores. This usually means the old broken food101-mobilenetv2.onnx is being used. Run pnpm run setup:model and keep AI_NODE_MODEL_PATH=./models/st_efficientnetlcv1_224_tfs_qdq_int8.onnx. Output range: ${stats.range}`,
+        `ONNX model returned near-uniform scores. This usually means the old broken food101-mobilenetv2.onnx is being used. Run npm run setup:model and keep AI_NODE_MODEL_PATH=./models/st_efficientnetlcv1_224_tfs_qdq_int8.onnx. Output range: ${stats.range}`,
       );
     }
 
@@ -194,7 +202,7 @@ app.post('/predict', async (c) => {
       suggestions: nutrition.suggestions,
       explanation: buildExplanation(best, topPredictions),
       modelName: env.modelKind,
-      modelVersion: 'local-onnx-food101-v2',
+      modelVersion: 'local-onnx-food101-v3',
       modelDebug: {
         inputType: inputSpec.type,
         inputShape: inputSpec.shape,
@@ -207,7 +215,7 @@ app.post('/predict', async (c) => {
     return c.json(
       {
         success: false,
-        message: 'Prediction failed.',
+        message: error instanceof Error ? error.message : 'Prediction failed.',
       },
       500,
     );
@@ -296,7 +304,7 @@ function normalizeImageShape(rawShape: Array<number | string | null>) {
   }
 
   // Some ONNX exports use symbolic strings such as batch, height, width, channels.
-  // The STMicro Food-101 model used here is a 224x224 RGB NHWC model.
+  // The bundled STMicro Food-101 model is a 224x224 RGB model.
   const lastDim = String(rawShape[3] ?? '').toLowerCase();
   if (lastDim.includes('channel') || lastDim.includes('rgb')) {
     return [numeric[0] ?? 1, numeric[1] ?? 224, numeric[2] ?? 224, 3];
@@ -306,20 +314,24 @@ function normalizeImageShape(rawShape: Array<number | string | null>) {
 }
 
 async function imageToTensor(buffer: Buffer, spec: ModelInputSpec) {
-  const resizeSize = Number(process.env.AI_NODE_RESIZE_SIZE || Math.max(256, spec.width, spec.height));
-  const left = Math.max(0, Math.floor((resizeSize - spec.width) / 2));
-  const top = Math.max(0, Math.floor((resizeSize - spec.height) / 2));
+  // Match the preprocessing published with STMicroelectronics' Food-101 model:
+  // RGB -> direct fit resize to model dimensions with nearest-neighbor -> 1/255 rescaling.
+  // In the STM32 model-zoo terminology, `aspect_ratio: fit` may distort the source
+  // image instead of cropping it; therefore Sharp's `fill` mode is intentional here.
   const { data, info } = await sharp(buffer)
     .rotate()
     .toColorspace('srgb')
-    .resize(resizeSize, resizeSize, { fit: 'cover', position: 'centre' })
-    .extract({ left, top, width: spec.width, height: spec.height })
     .removeAlpha()
+    .resize(spec.width, spec.height, { fit: 'fill', kernel: sharp.kernel.nearest })
     .raw()
     .toBuffer({ resolveWithObject: true });
 
-  if (info.channels < 3) {
-    throw new Error(`Expected RGB image data, got ${info.channels} channel(s).`);
+  if (info.width !== spec.width || info.height !== spec.height) {
+    throw new Error(`Image preprocessing returned ${info.width}x${info.height}; expected ${spec.width}x${spec.height}.`);
+  }
+
+  if (info.channels !== 3) {
+    throw new Error(`Expected 3-channel RGB image data, got ${info.channels} channel(s).`);
   }
 
   if (spec.type === 'int8') {
@@ -334,9 +346,12 @@ async function imageToTensor(buffer: Buffer, spec: ModelInputSpec) {
     return new ort.Tensor('uint8', input, spec.shape);
   }
 
+  if (spec.type !== 'float32') {
+    throw new Error(`Unsupported ONNX image input type '${spec.type}'. Expected float32, int8, or uint8.`);
+  }
+
   const input = new Float32Array(3 * spec.width * spec.height);
-  const normalization = (process.env.AI_NODE_FLOAT_NORMALIZATION || 'imagenet').toLowerCase();
-  fillTypedImage(input, data, info.channels, spec, (value, channel) => normalizeFloat(value, channel, normalization));
+  fillTypedImage(input, data, info.channels, spec, (value) => value / 255);
   return new ort.Tensor('float32', input, spec.shape);
 }
 
@@ -364,15 +379,6 @@ function fillTypedImage<T extends Float32Array | Int8Array | Uint8Array>(
       }
     }
   }
-}
-
-function normalizeFloat(value: number, channel: number, normalization: string) {
-  if (normalization === 'zero_to_one') return value / 255;
-  if (normalization === 'minus_one_to_one') return value / 127.5 - 1;
-
-  const mean = [0.485, 0.456, 0.406];
-  const std = [0.229, 0.224, 0.225];
-  return (value / 255 - mean[channel]) / std[channel];
 }
 
 function clampInt8(value: number) {
@@ -467,14 +473,6 @@ function resolveFromPackage(value: string) {
 
 function isFileLike(value: FormDataEntryValue | null): value is File {
   return typeof value === 'object' && value !== null && 'arrayBuffer' in value && 'name' in value;
-}
-
-function isAuthorized(authorization: string | undefined) {
-  if (!env.apiKey) return true;
-  const supplied = authorization?.replace(/^Bearer\s+/i, '') ?? '';
-  const expectedBytes = Buffer.from(env.apiKey);
-  const suppliedBytes = Buffer.from(supplied);
-  return expectedBytes.length === suppliedBytes.length && timingSafeEqual(expectedBytes, suppliedBytes);
 }
 
 function round(value: number, digits: number) {

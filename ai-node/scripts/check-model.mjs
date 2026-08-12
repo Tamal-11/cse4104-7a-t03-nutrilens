@@ -12,7 +12,7 @@ const labelsCount = 101;
 
 if (!existsSync(modelPath)) {
   console.error(`Model missing: ${modelPath}`);
-  console.error('Run: pnpm run setup:model');
+  console.error('Run: npm run setup:model');
   process.exit(1);
 }
 
@@ -60,7 +60,8 @@ if (input.type === 'int8') {
   tensor = new ort.Tensor('uint8', data, shape);
 } else {
   const data = new Float32Array(total);
-  for (let i = 0; i < total; i += 1) data[i] = ((i % 255) / 255 - 0.5) * 2;
+  // Float inputs for the bundled STMicro Food-101 model are rescaled to [0, 1].
+  for (let i = 0; i < total; i += 1) data[i] = (i % 255) / 255;
   tensor = new ort.Tensor('float32', data, shape);
 }
 
@@ -116,7 +117,7 @@ function normalizeImageShape(rawShape) {
   }
 
   // Some ONNX exports mark batch/height/width/channel as symbolic strings.
-  // The STMicro Food-101 model used by this project is 224x224 RGB NHWC.
+  // The STMicro Food-101 model used by this project is a 224x224 RGB model.
   if (String(rawShape[3]).toLowerCase().includes('channel')) {
     return [numeric[0] ?? 1, numeric[1] ?? 224, numeric[2] ?? 224, 3];
   }

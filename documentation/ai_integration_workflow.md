@@ -32,11 +32,12 @@ Runtime:
 ## Local setup
 
 ```bash
-pnpm install
-pnpm run model:download
-pnpm run dev:ai
-pnpm run dev:api:local
-pnpm run dev:frontend
+corepack enable
+npm install
+npm run model:download
+npm run dev:ai
+npm run dev:api:local
+npm run dev:frontend
 ```
 
 Root `.env` must include:

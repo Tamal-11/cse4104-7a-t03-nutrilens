@@ -1,11 +1,6 @@
 name = "nutrilens-api"
 main = "src/index.ts"
 compatibility_date = "2026-06-26"
-compatibility_flags = ["nodejs_compat"]
-
-[observability]
-enabled = true
-head_sampling_rate = 1
 
 [dev]
 ip = "localhost"
@@ -15,22 +10,6 @@ local_protocol = "http"
 [[r2_buckets]]
 binding = "FOOD_IMAGES"
 bucket_name = "food-images"
-
-[[ratelimits]]
-name = "AUTH_RATE_LIMIT"
-namespace_id = "410401"
-
-  [ratelimits.simple]
-  limit = 10
-  period = 60
-
-[[ratelimits]]
-name = "API_RATE_LIMIT"
-namespace_id = "410402"
-
-  [ratelimits.simple]
-  limit = 30
-  period = 60
 
 [vars]
 R2_PUBLIC_BASE_URL = ""

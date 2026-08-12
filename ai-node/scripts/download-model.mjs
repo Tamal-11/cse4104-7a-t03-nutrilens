@@ -54,7 +54,7 @@ try {
 
   await rename(tempPath, targetPath);
   console.log('Model download complete.');
-  console.log('Now run: pnpm run model:check');
+  console.log('Now run: npm run model:check');
 } catch (error) {
   await unlink(tempPath).catch(() => undefined);
   throw error;
