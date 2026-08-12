@@ -5,12 +5,13 @@ for (const path of [
   'frontend/node_modules',
   'backend/node_modules',
   'ai-node/node_modules',
-  'package-lock.json',
-  'frontend/package-lock.json',
-  'backend/package-lock.json',
-  'ai-node/package-lock.json',
+  'frontend/dist',
+  'backend/dist',
+  'ai-node/dist',
 ]) {
   rmSync(path, { recursive: true, force: true });
 }
 
-console.log('Removed installed dependencies and npm lock files. Run npm run dev to reinstall and start.');
+console.log('Removed installed dependencies and build output.');
+console.log('Package lock files were kept so npm ci remains reproducible.');
+console.log('Run: npm run setup');

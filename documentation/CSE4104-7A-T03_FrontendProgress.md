@@ -35,7 +35,7 @@ NutriLens is a responsive food-image-based nutrition analysis application. It al
 | Charts and Data Visualization | Recharts |
 | Progressive Web App | Vite Plugin PWA |
 | API Communication | Browser Fetch API |
-| Package Manager | pnpm |
+| Package Manager | npm |
 
 ## Completed Pages
 

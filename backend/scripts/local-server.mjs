@@ -12,7 +12,7 @@ const repoRoot = path.resolve(__dirname, '../..');
 config({ path: path.join(repoRoot, '.env') });
 
 const PORT = Number(process.env.LOCAL_API_PORT || 8787);
-const HOST = process.env.LOCAL_API_HOST || '127.0.0.1';
+const HOST = '127.0.0.1';
 const AI_MODEL_ENDPOINT = process.env.AI_MODEL_ENDPOINT || 'http://127.0.0.1:8788/predict';
 const AI_MODEL_API_KEY = process.env.AI_MODEL_API_KEY || '';
 const uploadDir = path.join(repoRoot, '.local-storage', 'uploads');
@@ -59,7 +59,7 @@ const logs = ['Local demo API started. Cloud database and R2 are not required in
 app.use(
   '*',
   cors({
-    origin: (origin) => origin || 'http://localhost:3000',
+    origin: (origin) => ['http://localhost:3000', 'http://127.0.0.1:3000'].includes(origin) ? origin : '',
     allowHeaders: ['Authorization', 'Content-Type'],
     allowMethods: ['GET', 'POST', 'PUT', 'OPTIONS'],
     credentials: true,

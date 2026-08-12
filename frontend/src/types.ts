@@ -28,6 +28,7 @@ export interface FoodAnalysis {
   isHealthy: boolean;
   classification: 'Healthy' | 'Moderate' | 'Unhealthy';
   macros: MacroNutrients;
+  servingSize: string;
   pros: string[];
   cons: string[];
   warnings: string[];

@@ -11,7 +11,6 @@ This package runs the local Node.js ONNX food-recognition service used by the Nu
 - Local starter nutrition catalog
 - STMicro Food-101 EfficientNet INT8 ONNX model
 
-The old `food101-mobilenetv2.onnx` model is not used because it returns near-uniform scores and causes wrong 1% predictions.
 
 ## Setup
 

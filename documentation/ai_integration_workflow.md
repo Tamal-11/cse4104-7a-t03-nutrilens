@@ -1,6 +1,6 @@
 # AI Integration Workflow
 
-NutriLens now has a local Node.js ONNX AI integration. The old Python/TensorFlow placeholder has been removed from the active runtime path.
+NutriLens uses a local Node.js ONNX service for food image classification.
 
 ## Current AI service
 
@@ -8,96 +8,65 @@ NutriLens now has a local Node.js ONNX AI integration. The old Python/TensorFlow
 ai-node/
 ```
 
-Runtime:
+Current runtime:
 
 - Node.js
-- ONNX Runtime Node.js binding
-- Food-101 MobileNetV2 ONNX model
-- Local Food-101 labels
+- Hono
+- ONNX Runtime for Node.js
+- Sharp image preprocessing
+- STMicroelectronics EfficientNet-LC Food-101 QDQ INT8 ONNX model
+- 101 Food-101 labels
 - Local starter nutrition catalog
 
-## Current working flow
+## Workflow
 
-1. User uploads a food image from the frontend.
-2. Frontend sends the image to `POST /api/v1/upload-food-image`.
-3. Backend stores the file in Cloudflare R2 and metadata in Neon PostgreSQL.
+1. User selects or drags and drops a JPG, PNG, or WebP food image.
+2. Frontend sends the file to `POST /api/v1/upload-food-image`.
+3. Backend validates and stores the image.
 4. Frontend sends the returned `imageId` to `POST /api/v1/analyze-food`.
-5. Backend reads the image from R2.
+5. Backend verifies that the image belongs to the current user.
 6. Backend sends the image to `AI_MODEL_ENDPOINT`.
-7. Local `ai-node` service runs ONNX inference.
-8. AI service returns food name, confidence, nutrition estimate, health notes, and suggestions.
-9. Backend validates the AI response and saves the result in Neon PostgreSQL.
-10. Frontend displays the final food analysis.
+7. `ai-node` converts the image to RGB, resizes it to 224 x 224 with nearest-neighbor interpolation, and applies 1/255 rescaling.
+8. EfficientNet-LC performs Food-101 classification.
+9. The AI service returns the predicted food, confidence, top predictions, and the matching estimated nutrition record.
+10. Backend validates the AI response, stores the completed analysis, and returns it to the frontend.
+11. Frontend displays the food result and estimated nutrition values.
+
+## AI output
+
+Example structure:
+
+```json
+{
+  "success": true,
+  "foodName": "Hamburger",
+  "confidence": 0.7569,
+  "nutrition": {
+    "calories": 295,
+    "protein": 17,
+    "carbohydrates": 30,
+    "fats": 14,
+    "fiber": 2,
+    "servingSize": "100 g estimated edible portion"
+  },
+  "classification": "Moderate",
+  "modelName": "stmicro_effnet_int8_food101",
+  "modelVersion": "local-onnx-food101-v3"
+}
+```
+
+Nutrition values are catalog estimates for approximately 100 g. The system does not estimate the actual photographed portion size.
 
 ## Local setup
 
 ```bash
-corepack enable
-npm install
-npm run model:download
-npm run dev:ai
-npm run dev:api:local
-npm run dev:frontend
+npm run setup
+npm run setup:model
+npm run model:check
+npm run inference:check
+npm run dev
 ```
 
-Root `.env` must include:
+## Current limitation
 
-```env
-AI_MODEL_ENDPOINT=http://127.0.0.1:8788/predict
-AI_MODEL_API_KEY=
-```
-
-## AI input
-
-`POST /predict` receives multipart form data:
-
-```text
-image = uploaded food image
-```
-
-Supported backend uploads:
-
-```text
-image/jpeg
-image/png
-image/webp
-```
-
-Default maximum upload size:
-
-```text
-8 MB
-```
-
-## AI output
-
-The AI service returns the exact shape expected by the backend:
-
-```json
-{
-  "foodName": "Pizza",
-  "confidence": 0.87,
-  "nutrition": {
-    "calories": 266,
-    "protein": 11,
-    "carbohydrates": 33,
-    "fats": 10,
-    "fiber": 2
-  },
-  "classification": "Moderate",
-  "healthBenefits": [],
-  "warnings": [],
-  "suggestions": [],
-  "explanation": "Pizza was identified by the local ONNX model with 87% confidence.",
-  "modelName": "mobilenet_v2_food101_onnx_node",
-  "modelVersion": "local-onnx-1"
-}
-```
-
-## Database support
-
-`004_seed_food101_nutrition_catalog.sql` adds all 101 Food-101 classes to `nutrition_catalog`, so lookup/matching works after mock data is removed.
-
-## Important limitation
-
-The Food-101 model can classify only the 101 trained classes. The nutrition catalog values are starter estimates for project demonstration and should be replaced with verified data before production.
+The model performs one whole-image Food-101 classification. It does not perform multi-food detection, ingredient extraction, portion estimation, allergen detection from pixels, or medical diagnosis.

@@ -1,6 +1,6 @@
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
-import { cors } from 'hono/cors';
+import { timingSafeEqual } from 'node:crypto';
 import { config } from 'dotenv';
 import * as ort from 'onnxruntime-node';
 import sharp from 'sharp';
@@ -20,15 +20,20 @@ const safeModelPath = requestedModelPath.includes('food101-mobilenetv2.onnx')
   ? './models/st_efficientnetlcv1_224_tfs_qdq_int8.onnx'
   : requestedModelPath;
 
+const requestedHost = process.env.AI_NODE_HOST || '127.0.0.1';
+const apiKey = process.env.AI_MODEL_API_KEY || '';
+const remoteHostAllowed = process.env.AI_NODE_ALLOW_REMOTE === 'true' && Boolean(apiKey);
 const env = {
   port: Number(process.env.AI_NODE_PORT || 8788),
-  host: process.env.AI_NODE_HOST || '127.0.0.1',
+  host: ['127.0.0.1', '::1', 'localhost'].includes(requestedHost) || remoteHostAllowed ? requestedHost : '127.0.0.1',
   modelPath: resolveFromPackage(safeModelPath),
   modelKind: process.env.AI_NODE_MODEL_KIND || 'stmicro_effnet_int8_food101',
   labelsPath: resolveFromPackage(process.env.AI_NODE_LABELS_PATH || './data/food101-labels.json'),
   nutritionPath: resolveFromPackage(process.env.AI_NODE_NUTRITION_PATH || './data/nutrition-db.json'),
   topK: Number(process.env.AI_NODE_TOP_K || 5),
   minOutputDynamicRange: Number(process.env.AI_NODE_MIN_OUTPUT_DYNAMIC_RANGE || 1e-5),
+  apiKey,
+  maxUploadBytes: Number(process.env.MAX_IMAGE_UPLOAD_BYTES || 8 * 1024 * 1024),
 };
 
 const MODEL_PREPROCESSING = {
@@ -39,7 +44,6 @@ const MODEL_PREPROCESSING = {
 } as const;
 
 const app = new Hono();
-app.use('*', cors({ origin: '*', allowMethods: ['GET', 'POST', 'OPTIONS'] }));
 
 type NutritionEntry = {
   foodName: string;
@@ -116,11 +120,9 @@ app.get('/health', async (c) => {
   return c.json({
     status: modelFileExists && modelStatus === 'loaded' && labels.length === 101 ? 'ready' : 'not_ready',
     modelKind: env.modelKind,
-    modelPath: env.modelPath,
     modelFileExists,
     modelFileSize,
     modelStatus,
-    modelError,
     labelsCount: labels.length,
     nutritionEntries: Object.keys(nutrition).length,
     input,
@@ -136,6 +138,9 @@ app.get('/labels', async (c) => {
 
 app.post('/predict', async (c) => {
   try {
+    if (!isAuthorized(c.req.header('Authorization'))) {
+      return c.json({ success: false, message: 'Authentication required.' }, 401);
+    }
     if (!existsSync(env.modelPath)) {
       return c.json(
         {
@@ -151,6 +156,12 @@ app.post('/predict', async (c) => {
 
     if (!isFileLike(image)) {
       return c.json({ success: false, message: 'image file is required.' }, 400);
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(image.type)) {
+      return c.json({ success: false, message: 'Only JPG, PNG, and WebP images are supported.' }, 400);
+    }
+    if (Number.isFinite(env.maxUploadBytes) && image.size > env.maxUploadBytes) {
+      return c.json({ success: false, message: `Image is too large. Maximum allowed size is ${Math.round(env.maxUploadBytes / 1024 / 1024)} MB.` }, 400);
     }
 
     const [session, labels, nutritionDb] = await Promise.all([loadModel(), loadLabels(), loadNutrition()]);
@@ -195,6 +206,7 @@ app.post('/predict', async (c) => {
         carbohydrates: nutrition.carbohydrates,
         fats: nutrition.fats,
         fiber: nutrition.fiber,
+        servingSize: nutrition.servingSize,
       },
       classification: nutrition.classification,
       healthBenefits: nutrition.healthBenefits,
@@ -215,7 +227,7 @@ app.post('/predict', async (c) => {
     return c.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : 'Prediction failed.',
+        message: 'Prediction failed.',
       },
       500,
     );
@@ -473,6 +485,14 @@ function resolveFromPackage(value: string) {
 
 function isFileLike(value: FormDataEntryValue | null): value is File {
   return typeof value === 'object' && value !== null && 'arrayBuffer' in value && 'name' in value;
+}
+
+function isAuthorized(authorization: string | undefined) {
+  if (!env.apiKey) return true;
+  const supplied = authorization?.replace(/^Bearer\s+/i, '') ?? '';
+  const expectedBytes = Buffer.from(env.apiKey);
+  const suppliedBytes = Buffer.from(supplied);
+  return expectedBytes.length === suppliedBytes.length && timingSafeEqual(expectedBytes, suppliedBytes);
 }
 
 function round(value: number, digits: number) {

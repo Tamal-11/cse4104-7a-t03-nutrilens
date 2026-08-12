@@ -22,7 +22,6 @@ The working model is saved here:
 ai-node/models/st_efficientnetlcv1_224_tfs_qdq_int8.onnx
 ```
 
-The old `food101-mobilenetv2.onnx` model was removed from the default path because it returns near-uniform scores and causes wrong 1% predictions.
 
 ## 3. Start the app
 
