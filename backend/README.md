@@ -11,7 +11,7 @@ NutriLens uses a Hono backend. Production runs as a Cloudflare Worker with Neon 
 | Database | Neon PostgreSQL |
 | Authentication | Neon Auth |
 | Image storage | Cloudflare R2 |
-| AI analysis | Node.js ONNX Food-101 service |
+| AI analysis | Gemini vision API |
 
 ## Local development
 
@@ -19,9 +19,6 @@ From the repository root:
 
 ```bash
 pnpm run setup
-pnpm run setup:model
-pnpm run model:check
-pnpm run inference:check
 pnpm run dev
 ```
 
@@ -30,7 +27,6 @@ Local services:
 ```text
 Frontend   http://localhost:3000
 Backend    http://localhost:8787
-AI service http://127.0.0.1:8788
 ```
 
 The local backend uses demo authentication and in-memory records. Production authentication and storage are separate.
@@ -43,8 +39,8 @@ Production configuration includes:
 DATABASE_URL
 NEON_AUTH_URL
 ALLOWED_ORIGINS
-AI_MODEL_ENDPOINT
-AI_MODEL_API_KEY
+GEMINI_API_KEY
+GEMINI_MODEL
 ADMIN_EMAILS
 MAX_IMAGE_UPLOAD_BYTES
 ```
@@ -57,7 +53,7 @@ Store secrets with Wrangler from the `backend` directory, for example:
 cd backend
 npx wrangler secret put DATABASE_URL
 npx wrangler secret put NEON_AUTH_URL
-npx wrangler secret put AI_MODEL_API_KEY
+npx wrangler secret put GEMINI_API_KEY
 ```
 
 Run migrations from the repository root:
@@ -86,7 +82,7 @@ The production Worker includes:
 - server-side admin authorization; and
 - AI response validation before persistence.
 
-The AI service can also require `AI_MODEL_API_KEY` when deployed beyond localhost.
+Gemini is called only by the backend; never add `GEMINI_API_KEY` to frontend environment variables.
 
 ## Main routes
 

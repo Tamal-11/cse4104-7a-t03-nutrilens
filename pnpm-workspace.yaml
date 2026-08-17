@@ -1,7 +1,6 @@
 packages:
   - frontend
   - backend
-  - ai-node
 
 overrides:
   adm-zip: ">=0.6.0"
@@ -12,12 +11,9 @@ overrides:
 
 allowBuilds:
   esbuild: true
-  onnxruntime-node: true
   sharp: true
   workerd: true
 
 onlyBuiltDependencies:
   - esbuild
-  - onnxruntime-node
-  - sharp
   - workerd

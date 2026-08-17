@@ -49,5 +49,4 @@ console.log('Installing project dependencies once with pnpm...');
 run('pnpm install');
 
 console.log('\nDependency setup complete.');
-console.log('Next: run pnpm run setup:model once to download the working Food-101 ONNX model.');
-console.log('After that, run pnpm run dev.');
+console.log('Add GEMINI_API_KEY to .env, then run pnpm run dev.');
