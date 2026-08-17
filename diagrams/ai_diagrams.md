@@ -11,7 +11,7 @@ flowchart TD
     AI[AI Model Service]
 
     YOLO[YOLOv8n]
-    MOB[MobileNetV3]
+    MOB[EfficientNet-LC Food-101]
     SHUF[ShuffleNet]
     EFF[EfficientNet-Lite]
 
@@ -109,7 +109,7 @@ flowchart TD
 
     subgraph AI Models
         Y[YOLOv8n]
-        MV[MobileNetV3]
+        MV[EfficientNet-LC Food-101]
         SH[ShuffleNet]
         EL[EfficientNet-Lite]
     end

@@ -1,20 +1,44 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# NutriLens Frontend
 
-# Run and deploy your AI Studio app
+The frontend is a React + Vite + TypeScript interface for the NutriLens food analysis system.
 
-This contains everything you need to run your app locally.
+## Local development
 
-View your app in AI Studio: https://ai.studio/apps/a28384e4-6164-46d9-9790-1c14dcfd9f97
+From the repository root:
 
-## Run Locally
+```bash
+pnpm run setup
+pnpm run dev
+```
 
-**Prerequisites:**  Node.js
+The frontend runs at:
 
+```text
+http://localhost:3000
+```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+It connects to the local backend using:
+
+```text
+VITE_API_BASE_URL=http://localhost:8787
+```
+
+## AI image flow
+
+1. The user selects or drags and drops a JPG, PNG, or WebP food photo.
+2. The frontend uploads the image to the backend.
+3. The backend sends the stored image securely to Gemini for analysis.
+4. The backend returns the Food-101 prediction and estimated nutrition values.
+5. The frontend displays the result and stores it in analysis history.
+
+Nutrition values shown in the interface are estimates for approximately 100 g of the detected food. They are not a measurement of the photographed portion.
+
+## Main folders
+
+```text
+src/components/   Main UI screens
+src/services/     Backend API client
+src/types.ts      Shared frontend types
+public/           Static assets
+```
+

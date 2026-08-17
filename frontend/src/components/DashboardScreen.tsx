@@ -62,8 +62,8 @@ export default function DashboardScreen({ user, history, onNavigate, onSelectSca
             <Flame className="w-4.5 h-4.5 fill-current" />
           </div>
           <div>
-            <span className="block text-[10px] text-slate-400 font-bold select-none leading-none">Avg kcal</span>
-            <span className="text-[20px] font-black text-[#50912e] leading-tight block mt-1">{averageCalories} <span className="text-xs font-semibold">kcal</span></span>
+            <span className="block text-[10px] text-slate-400 font-bold select-none leading-none">Avg est. kcal</span>
+            <span className="text-[20px] font-black text-[#50912e] leading-tight block mt-1">≈ {averageCalories} <span className="text-xs font-semibold">/100g</span></span>
           </div>
         </div>
 
@@ -82,8 +82,8 @@ export default function DashboardScreen({ user, history, onNavigate, onSelectSca
             <Clock className="w-4.5 h-4.5" />
           </div>
           <div>
-            <span className="block text-[10px] text-slate-400 font-bold select-none leading-none">Last kcal</span>
-            <span className="text-[20px] font-black text-[#50912e] leading-tight block mt-1">{latestCalories} <span className="text-xs font-semibold">kcal</span></span>
+            <span className="block text-[10px] text-slate-400 font-bold select-none leading-none">Last est. kcal</span>
+            <span className="text-[20px] font-black text-[#50912e] leading-tight block mt-1">≈ {latestCalories} <span className="text-xs font-semibold">/100g</span></span>
           </div>
         </div>
       </div>
@@ -96,7 +96,7 @@ export default function DashboardScreen({ user, history, onNavigate, onSelectSca
           {/* Green Table Headers row matching screenshot perfectly */}
           <div className="mt-3 mx-0.5 rounded-xl bg-[#eef5e9] py-2 px-5 flex items-center justify-between text-[11px] font-bold text-[#456d2f] select-none">
             <span className="w-1/3">Food</span>
-            <span className="w-1/3 text-center">kcal</span>
+            <span className="w-1/3 text-center">est. kcal/100g</span>
             <span className="w-1/3 text-right">Date</span>
           </div>
 

@@ -13,14 +13,18 @@ __pycache__/
 venv/
 
 # AI model artifacts
-ai-model/models/*.h5
-ai-model/models/*.keras
-ai-model/models/*.pt
-ai-model/models/*.onnx
-ai-model/data/raw/*
-ai-model/data/processed/*
-!ai-model/data/raw/.gitkeep
-!ai-model/data/processed/.gitkeep
+ai/models/*.h5
+ai/models/*.keras
+ai/models/*.pt
+ai/models/*.onnx
+ai/data/raw/*
+ai/data/processed/*
+ai-node/models/*.onnx
+ai-node/models/*.ort
+ai-node/models/*.data
+!ai-node/models/.gitkeep
+!ai/data/raw/.gitkeep
+!ai/data/processed/.gitkeep
 
 # Supabase
 .supabase/
@@ -34,3 +38,7 @@ build/
 .DS_Store
 .vscode/
 .idea/
+
+# Local demo runtime files
+.local-storage/
+frontend/.env.local

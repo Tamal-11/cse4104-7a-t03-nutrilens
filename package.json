@@ -1,13 +1,23 @@
 {
   "name": "cse4104-7a-t03-nutrilens",
   "private": true,
-  "packageManager": "pnpm@10.25.0",
+  "packageManager": "pnpm@11.7.0",
   "scripts": {
-    "dev:frontend": "corepack pnpm --dir frontend run dev",
-    "dev:backend": "corepack pnpm --dir backend run dev",
-    "deploy": "corepack pnpm --dir backend run deploy",
-    "db:migrate": "corepack pnpm --dir backend run db:migrate",
-    "build:frontend": "corepack pnpm --dir frontend run build",
-    "typecheck:backend": "corepack pnpm --dir backend run typecheck"
+    "dev": "node scripts/start-local.mjs",
+    "start": "node scripts/start-local.mjs",
+    "start:local": "node scripts/start-local.mjs",
+    "dev:local": "node scripts/start-local.mjs",
+    "dev:frontend": "pnpm --filter nutrilens-frontend dev",
+    "dev:api:local": "pnpm --filter nutrilens-backend dev:local",
+    "build:frontend": "pnpm --filter nutrilens-frontend build",
+    "typecheck:frontend": "pnpm --filter nutrilens-frontend lint",
+    "typecheck:backend": "pnpm --filter nutrilens-backend typecheck",
+    "typecheck": "pnpm run typecheck:frontend && pnpm run typecheck:backend",
+    "deploy": "pnpm --filter nutrilens-backend deploy",
+    "db:migrate": "pnpm --filter nutrilens-backend db:migrate",
+    "clean:deps": "node scripts/clean-deps.mjs",
+    "setup": "node scripts/setup-local.mjs",
+    "setup:all": "pnpm run setup",
+    "dev:backend": "pnpm --filter nutrilens-backend dev"
   }
 }

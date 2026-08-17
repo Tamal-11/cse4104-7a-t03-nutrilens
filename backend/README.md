@@ -1,130 +1,101 @@
 # NutriLens Backend
 
-NutriLens now uses a Cloudflare Worker for app APIs, Neon PostgreSQL for app data, Neon Auth for login/session management, and Cloudflare R2 for uploaded food images.
+NutriLens uses a Hono backend. Production runs as a Cloudflare Worker with Neon PostgreSQL, Neon Auth, and Cloudflare R2. Local demo mode runs with Node.js and local storage.
 
 ## Stack
 
 | Part | Tool |
 |---|---|
-| App API | Cloudflare Worker + Hono |
+| API | Hono |
+| Production runtime | Cloudflare Workers |
 | Database | Neon PostgreSQL |
-| Auth | Neon Auth built on Better Auth |
-| File storage | Cloudflare R2 |
-| Analysis | Mock result now, real AI later |
+| Authentication | Neon Auth |
+| Image storage | Cloudflare R2 |
+| AI analysis | Gemini vision API |
 
-## Folder Shape
+## Local development
 
-```text
-backend/
-  migrations/
-    001_neon_app_schema.sql
-    002_profile_triggers_and_seed.sql
-  src/
-    index.ts
-  package.json
-  wrangler.toml
-```
-
-## Environment
-
-Copy `.env.example` to `.env` in the repository root and set:
-
-```text
-DATABASE_URL=postgresql://...
-NEON_AUTH_URL=https://your-neon-auth-endpoint
-R2_PUBLIC_BASE_URL=https://your-public-r2-domain
-```
-
-Use the auth endpoint shown by Neon for `NEON_AUTH_URL`. The Worker validates
-each protected request by calling that endpoint's `/get-session` route.
-
-Store the database connection string and auth endpoint as Worker secrets before
-the first deployment:
+From the repository root:
 
 ```bash
-pnpm --dir backend exec wrangler secret put DATABASE_URL
-pnpm --dir backend exec wrangler secret put NEON_AUTH_URL
+pnpm run setup
+pnpm run dev
 ```
 
-Set `R2_PUBLIC_BASE_URL` in `wrangler.toml` or in the Cloudflare dashboard.
-`pnpm dev:backend` loads local Worker bindings directly from the root `.env`.
-
-## Database Setup
-
-From the repository root, run all pending SQL migrations against Neon:
-
-```bash
-pnpm db:migrate
-```
-
-Applied files are recorded in `schema_migrations`. The app schema stores profile,
-image, analysis request, analysis result, and mock nutrition catalog rows. Neon
-Auth owns the login/session tables separately.
-
-## Auth Flow
-
-The frontend only calls the Worker. The Worker proxies `/api/auth/*` requests to
-the Neon-provided auth endpoint:
+Local services:
 
 ```text
-POST /api/auth/sign-up/email
-POST /api/auth/sign-in/email
-GET  /api/auth/get-session
-POST /api/auth/sign-out
+Frontend   http://localhost:3000
+Backend    http://localhost:8787
 ```
 
-Request flow:
+The local backend uses demo authentication and in-memory records. Production authentication and storage are separate.
 
-1. The frontend sends auth requests to the Worker's `/api/auth/*` routes.
-2. The Worker forwards the request to `NEON_AUTH_URL`.
-3. The Worker returns Neon Auth's response and session cookie to the frontend.
-4. The frontend sends that cookie when calling protected `/api/v1/*` routes.
-5. The Worker validates the cookie through `{NEON_AUTH_URL}/get-session`.
-6. A valid session is mapped to `user_profiles`; otherwise the Worker returns `401`.
+## Production environment
 
-## Worker Routes
-
-Base path:
+Production configuration includes:
 
 ```text
-/api/v1
+DATABASE_URL
+NEON_AUTH_URL
+ALLOWED_ORIGINS
+GEMINI_API_KEY
+GEMINI_MODEL
+ADMIN_EMAILS
+MAX_IMAGE_UPLOAD_BYTES
 ```
 
-Protected routes:
+Cloudflare R2 is bound as `FOOD_IMAGES` in `backend/wrangler.toml`.
 
-| Method | Path | Purpose |
-|---|---|---|
-| PUT | `/profile` | Update app profile fields |
-| POST | `/upload-food-image` | Store image in R2 and metadata in Neon |
-| POST | `/analyze-food` | Create a mock analysis result for an uploaded image |
-| GET | `/analysis-history` | List current user's analyses |
-| GET | `/analysis-history/:analysisId` | Read one analysis |
-| GET | `/nutrition-lookup` | Mock nutrition lookup |
-| GET | `/health-insights` | Mock health insights |
-
-## Local Development
-
-Use Node.js 22 or newer for the Worker toolchain.
-
-Install dependencies from the repo root, then run Wrangler:
+Store secrets with Wrangler from the `backend` directory, for example:
 
 ```bash
-pnpm install
-pnpm dev:backend
+cd backend
+npx wrangler secret put DATABASE_URL
+npx wrangler secret put NEON_AUTH_URL
+npx wrangler secret put GEMINI_API_KEY
 ```
 
-The local API listens at `http://localhost:8787`. Wrangler prints the URL after
-the Workers runtime starts. Local mode does not require a Cloudflare login, but
-authenticated `/api/v1/*` requests still require a valid Neon Auth session.
+Run migrations from the repository root:
 
-Deploy the Worker from the repository root:
+```bash
+pnpm run db:migrate
+```
+
+Deploy from the repository root:
 
 ```bash
 pnpm run deploy
 ```
 
-Use `pnpm run deploy`, not bare `pnpm deploy`. In pnpm 10, `pnpm deploy` is a
-workspace deployment command and does not run this package script.
+## Security controls
 
-The Worker is the only public backend boundary. Clients must not call
-`NEON_AUTH_URL` directly.
+The production Worker includes:
+
+- allowlisted credentialed CORS using `ALLOWED_ORIGINS`;
+- request IDs and a generic unhandled-error response;
+- Cloudflare rate limits for auth and protected API routes;
+- strict profile and request-body validation;
+- UUID validation for protected resource IDs;
+- image MIME, file-size, and file-signature checks;
+- user ownership checks for private images and analysis history;
+- server-side admin authorization; and
+- AI response validation before persistence.
+
+Gemini is called only by the backend; never add `GEMINI_API_KEY` to frontend environment variables.
+
+## Main routes
+
+```text
+/api/auth/*
+/api/v1/profile
+/api/v1/upload-food-image
+/api/v1/analyze-food
+/api/v1/analysis-history
+/api/v1/analysis-history/:analysisId
+/api/v1/nutrition-lookup
+/api/v1/health-insights
+/api/v1/admin/*
+```
+
+Do not commit real `.env` files, database credentials, or API keys.

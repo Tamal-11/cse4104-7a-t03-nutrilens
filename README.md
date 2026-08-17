@@ -1,121 +1,65 @@
 # NutriLens
 
-NutriLens is a food picture app.
+NutriLens is a food-recognition and nutrition-analysis system for CSE4104-7A-T03. It uses Gemini vision through the backend, so no local AI model is downloaded or run.
 
-User flow:
+| Service | URL | Purpose |
+|---|---|---|
+| Frontend | `http://localhost:3000` | React/Vite UI |
+| Local API | `http://localhost:8787` | Uploads, Gemini calls, and demo data |
 
-1. User makes account
-2. User logs in
-3. User uploads food picture
-4. System saves picture
-5. System runs mock analysis now
-6. User sees nutrition result and history
+## AI flow
 
-## Team
+`Frontend → Backend → Gemini → validated nutrition result → Frontend`
 
-| Field | Information |
-|---|---|
-| Team Name | CSE4104-7A-T03 |
-| Project Title | NutriLens - AI Based Food Recognition and Nutrition Analysis System |
-| GitHub | https://github.com/Tamal-11/cse4104-7a-t03-nutrilens.git |
+Images are uploaded to the backend first. The backend sends them to Gemini with a strict JSON response schema, validates the response before saving it, and never exposes the Gemini key to the browser. Nutrition values are estimates, not medical advice.
 
-## Current backend direction
+## Run locally
 
-| Part | Tool |
-|---|---|
-| Frontend | React, Vite, TypeScript, Tailwind CSS |
-| API layer | Cloudflare Worker + Hono |
-| Database | Neon PostgreSQL |
-| Auth | Neon Auth built on Better Auth |
-| File storage | Cloudflare R2 |
-| AI | Mock data now, real AI later |
-
-## Package manager
-
-Use pnpm from the repo root:
+Requirements: Node.js 22+, pnpm, and a Gemini API key.
 
 ```bash
-corepack enable
-pnpm install
-pnpm dev:backend
-pnpm db:migrate
-pnpm run deploy
+pnpm run setup
 ```
 
-Use `pnpm run deploy` for the Cloudflare Worker deploy script. Bare
-`pnpm deploy` is pnpm's workspace deploy command and requires a selected
-workspace package plus a target directory.
-
-## Repo shape
+Copy `.env.example` to `.env`, then set:
 
 ```text
-frontend/
-backend/
-docs/
-diagrams/
-ai/
-tests/
-README.md
+GEMINI_API_KEY=your_key_here
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
-## Backend docs
+Start the app:
 
-- [Backend platform note](backend/README.md)
-- [System design document](docs/system_design_document.md)
-- [API design](docs/api_design.md)
-- [Database design](docs/database_design.md)
-- [AI integration workflow](docs/ai_integration_workflow.md)
-
-## Diagrams
-
-- [System architecture](diagrams/system_architecture.md)
-- [ER diagram](diagrams/er_diagram.md)
-- [Use case diagram](diagrams/use_case_diagram.md)
-- [Activity diagram](diagrams/activity_diagram.md)
-- [AI Diagram](diagrams/ai_diagrams.md)
-
-## App API paths
-
-Worker base path:
-
-```text
-/api/v1
+```bash
+pnpm run dev
 ```
 
-Main app routes:
+Open `http://localhost:3000`. Never add the key to a frontend (`VITE_`) variable or commit `.env`.
 
-| Method | Path |
-|---|---|
-| PUT | `/api/v1/profile` |
-| POST | `/api/v1/upload-food-image` |
-| POST | `/api/v1/analyze-food` |
-| GET | `/api/v1/analysis-history` |
-| GET | `/api/v1/analysis-history/:analysisId` |
+## Useful commands
 
-## Auth paths
-
-Auth is not planned inside the Worker.
-
-Frontend will use Neon Auth at:
-
-```text
-{NEON_AUTH_URL}/*
+```bash
+pnpm run setup            # install dependencies
+pnpm run typecheck        # run TypeScript checks
+pnpm run dev              # start frontend and local backend
+pnpm run dev:api:local    # run local backend only
+pnpm run dev:frontend     # run frontend only
+pnpm run db:migrate       # run production database migrations
 ```
 
-Main auth actions:
+## Production configuration
 
-- sign up
-- sign in
-- get session
-- sign out
+Set `GEMINI_API_KEY` as a Cloudflare Worker secret:
 
-## Current note
+```bash
+cd backend
+npx wrangler secret put GEMINI_API_KEY
+```
 
-Docs now follow the target backend plan:
+Optional non-secret configuration: `GEMINI_MODEL` (defaults to `gemini-2.5-flash`). Production additionally needs its existing database, authentication, storage, CORS, and administrator settings.
 
-- Neon PostgreSQL
-- Neon Auth (Better Auth)
-- Cloudflare Worker with Hono
-- Cloudflare R2 for image files
+## Current limitations
 
-The legacy Supabase folder has been removed. Backend code now lives in `backend/`.
+- Gemini provides one primary-food estimate from an image.
+- Nutritional and health guidance is informational, not medical or clinical advice.
+- The photographed portion is estimated and may be inaccurate.
