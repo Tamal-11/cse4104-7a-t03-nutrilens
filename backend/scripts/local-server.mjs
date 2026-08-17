@@ -14,7 +14,7 @@ config({ path: path.join(repoRoot, '.env') });
 const PORT = Number(process.env.LOCAL_API_PORT || 8787);
 const HOST = '127.0.0.1';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
 const uploadDir = path.join(repoRoot, '.local-storage', 'uploads');
 
 const app = new Hono();
@@ -58,11 +58,11 @@ const logs = ['Local demo API started. Cloud database and R2 are not required in
 
 const FOOD_ANALYSIS_INSTRUCTIONS = `Analyze this food image. Identify the primary dish and estimate nutrition for the visible portion. Return only the requested JSON. Nutrition is an estimate, not medical advice. Use confidence from 0 to 1.
 
-Write for an everyday person with no nutrition knowledge. Make the advice useful and direct:
-- healthBenefits: 2-3 short, concrete positives such as steady energy, staying full longer, supporting muscle recovery, or helping a balanced diet. Do not say only "high protein", "fiber-rich", or other jargon; explain the practical benefit instead.
-- warnings: 1-3 short, non-alarming cautions in plain language, such as "May not suit a weight-loss goal if eaten often because it is calorie-dense." Explain why it matters.
-- suggestions: 2-3 simple next actions, such as add vegetables, choose water, reduce the portion, or pair it with a lighter meal later.
-- explanation: a friendly 2-3 sentence summary. State who may enjoy the meal (for energy, muscle support, or a filling meal) and who may want to adjust it (for weight loss, lower salt, or lower sugar goals).
+Write for an everyday person with no nutrition knowledge. Keep every response compact and easy to scan:
+- healthBenefits: exactly 2 short phrases, 3-7 words each, such as "Steady energy for your day" or "Helps you stay full". Do not use nutrition jargon by itself.
+- warnings: exactly 2 short phrases, 3-9 words each, such as "Heavy meal for weight loss" or "Watch salt if eaten often". Keep them non-alarming.
+- suggestions: exactly 2 short action phrases, 3-8 words each, such as "Add a side of vegetables" or "Choose water with this meal".
+- explanation: one friendly sentence of 8-16 words. Say the main practical takeaway only.
 Avoid medical claims, diagnoses, acronyms, and unexplained terms. Do not promise weight loss or muscle gain; use supportive wording such as "can help support".`;
 
 const GEMINI_RESPONSE_SCHEMA = {
@@ -73,10 +73,10 @@ const GEMINI_RESPONSE_SCHEMA = {
       calories: { type: 'number' }, protein: { type: 'number' }, carbohydrates: { type: 'number' },
       fats: { type: 'number' }, fiber: { type: 'number' }, servingSize: { type: 'string' },
     }, required: ['calories', 'protein', 'carbohydrates', 'fats', 'fiber'] },
-    healthBenefits: { type: 'array', description: '2-3 plain-language practical benefits for an everyday user.', items: { type: 'string' } },
-    warnings: { type: 'array', description: '1-3 plain-language cautions that explain why the food may not fit some goals.', items: { type: 'string' } },
-    suggestions: { type: 'array', description: '2-3 easy actions a user can take with this meal.', items: { type: 'string' } },
-    explanation: { type: 'string', description: 'A friendly 2-3 sentence everyday summary with no unexplained nutrition jargon.' },
+    healthBenefits: { type: 'array', description: 'Exactly 2 plain-language benefit phrases, 3-7 words each.', items: { type: 'string' } },
+    warnings: { type: 'array', description: 'Exactly 2 plain-language caution phrases, 3-9 words each.', items: { type: 'string' } },
+    suggestions: { type: 'array', description: 'Exactly 2 short, practical action phrases, 3-8 words each.', items: { type: 'string' } },
+    explanation: { type: 'string', description: 'One friendly 8-16 word sentence with the main practical takeaway.' },
     classification: { type: 'string', enum: ['Healthy', 'Moderate', 'Unhealthy'] },
   },
   required: ['foodName', 'confidence', 'nutrition', 'classification'],

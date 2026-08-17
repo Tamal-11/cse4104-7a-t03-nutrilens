@@ -285,7 +285,7 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
                 </div>
               </div>
 
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-semibold leading-relaxed text-amber-800">
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-relaxed text-amber-800">
                 Nutrition values are catalog estimates for {currentFood.servingSize}. They are not a measurement of the photographed portion.
               </div>
 
@@ -385,7 +385,7 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
                     {currentFood.pros.map((pro, index) => (
                       <div key={index} className="flex gap-2">
                         <span className="text-emerald-600 font-bold shrink-0 text-xs mt-0.5">✓</span>
-                        <span className="text-[10px] font-semibold text-slate-600 leading-tight">{pro}</span>
+                        <span className="text-xs font-semibold text-slate-700 leading-relaxed">{pro}</span>
                       </div>
                     ))}
                   </div>
@@ -407,7 +407,7 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
                     {currentFood.cons.map((con, index) => (
                       <div key={index} className="flex gap-2">
                         <span className="text-rose-600 font-bold shrink-0 text-xs mt-0.5">✗</span>
-                        <span className="text-[10px] font-semibold text-slate-600 leading-tight">{con}</span>
+                        <span className="text-xs font-semibold text-slate-700 leading-relaxed">{con}</span>
                       </div>
                     ))}
                   </div>
@@ -418,14 +418,14 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
               {currentFood.warnings && currentFood.warnings.length > 0 && (
                 <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100/80 flex gap-3 shadow-xs">
                   <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                  <div className="text-[11px] leading-relaxed">
-                    <span className="font-extrabold text-amber-800 block uppercase tracking-wide text-[9px] mb-1">AI Dietitian Warnings & Suggestions</span>
+                  <div className="text-sm leading-relaxed">
+                    <span className="font-extrabold text-amber-800 block uppercase tracking-wide text-xs mb-1">AI Dietitian Warnings & Suggestions</span>
                     <ul className="list-disc pl-3 mt-1.5 space-y-1.5 text-slate-600 font-semibold">
                       {currentFood.warnings.map((warn, i) => (
-                        <li key={i} className="text-[10px]">{warn}</li>
+                        <li key={i} className="text-xs">{warn}</li>
                       ))}
                       {currentFood.suggestions && currentFood.suggestions.map((sug, i) => (
-                        <li key={`sug-${i}`} className="text-[10px] text-teal-850 list-none font-bold italic text-[#2c5c16]">+ {sug}</li>
+                        <li key={`sug-${i}`} className="text-xs text-teal-850 list-none font-bold text-[#2c5c16]">+ {sug}</li>
                       ))}
                     </ul>
                   </div>
@@ -433,9 +433,9 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
               )}
 
               {/* AI Interaction statement explanation */}
-              <div className="bg-white p-4.5 rounded-2xl border border-[#e2edd8] text-[11px] leading-relaxed text-slate-600 font-semibold shadow-xs">
-                <span className="font-extrabold text-slate-800 block mb-1 uppercase tracking-wider text-[9px] text-[#426a2e]">Meal Synthesis Summary</span>
-                <p className="mt-1 text-slate-500 font-medium">{currentFood.explanation}</p>
+              <div className="bg-white p-4.5 rounded-2xl border border-[#e2edd8] text-sm leading-relaxed text-slate-600 font-semibold shadow-xs">
+                <span className="font-extrabold text-slate-800 block mb-1 uppercase tracking-wider text-xs text-[#426a2e]">Meal Synthesis Summary</span>
+                <p className="mt-1 text-slate-600 font-medium">{currentFood.explanation}</p>
               </div>
 
               {/* Center Clean Action Button: Analyze Another Plate */}
