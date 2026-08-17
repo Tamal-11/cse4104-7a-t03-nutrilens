@@ -9,8 +9,8 @@ type Env = {
     NEON_AUTH_URL: string;
     FOOD_IMAGES: R2Bucket;
     R2_PUBLIC_BASE_URL?: string;
-    AI_MODEL_ENDPOINT?: string;
-    AI_MODEL_API_KEY?: string;
+    GEMINI_API_KEY?: string;
+    GEMINI_MODEL?: string;
     ADMIN_EMAILS?: string;
     MAX_IMAGE_UPLOAD_BYTES?: string;
     ALLOWED_ORIGINS?: string;
@@ -77,7 +77,7 @@ app.get("/health", async (c) => {
     }
 
     const sql = neon(c.env.DATABASE_URL);
-    await sql`select 1 as healthy`;
+    await sql.query("select 1 as healthy");
 
     return c.json({
       status: "healthy",
@@ -171,9 +171,7 @@ app.all("/api/auth/*", async (c) => {
   target.search = new URL(c.req.url).search;
 
   const upstreamHeaders = new Headers(c.req.raw.headers);
-  if (!upstreamHeaders.has("Origin")) {
-    upstreamHeaders.set("Origin", new URL(c.req.url).origin);
-  }
+  upstreamHeaders.set("Origin", new URL(c.req.url).origin);
 
   const upstreamRequest = new Request(target, {
     method: c.req.method,
@@ -443,7 +441,7 @@ app.post("/api/v1/analyze-food", async (c) => {
     );
   }
 
-  if (!c.env.AI_MODEL_ENDPOINT) {
+  if (!c.env.GEMINI_API_KEY) {
     return c.json(
       {
         success: false,
@@ -461,119 +459,66 @@ app.post("/api/v1/analyze-food", async (c) => {
     );
   }
 
-  const modelForm = new FormData();
-  modelForm.append(
-    "image",
-    new File([await storedImage.arrayBuffer()], imageRows[0].file_name, {
-      type: imageRows[0].mime_type,
-    }),
-  );
-  let modelResponse: Response;
+  let geminiSucceeded = false;
   try {
-    modelResponse = await fetch(c.env.AI_MODEL_ENDPOINT, {
-      method: "POST",
-      headers: c.env.AI_MODEL_API_KEY
-        ? { Authorization: `Bearer ${c.env.AI_MODEL_API_KEY}` }
-        : undefined,
-      body: modelForm,
+    const prediction = await analyzeWithGemini(
+      await storedImage.arrayBuffer(),
+      imageRows[0].mime_type,
+      c.env.GEMINI_API_KEY,
+      c.env.GEMINI_MODEL,
+    );
+    const modelValidationError = validatePrediction(prediction);
+    if (modelValidationError) {
+      console.error(JSON.stringify({ event: "invalid_gemini_response", requestId: c.get("requestId"), reason: modelValidationError }));
+      return c.json({ success: false, message: "Food analysis service returned an invalid response." }, 502);
+    }
+    geminiSucceeded = true;
+
+    const catalogRows = await sql`
+      select id
+      from nutrition_catalog
+      where lower(food_name) = lower(${prediction.foodName})
+      limit 1
+    `;
+    const analysisId = crypto.randomUUID();
+    const resultId = crypto.randomUUID();
+    const healthInsights = {
+      healthBenefits: prediction.healthBenefits ?? [],
+      warnings: prediction.warnings ?? [],
+      suggestions: prediction.suggestions ?? [],
+      explanation: prediction.explanation ?? "",
+      classification: prediction.classification,
+    };
+
+    await sql`
+      insert into analysis_requests (id, user_id, image_id, status, completed_at)
+      values (${analysisId}, ${user.id}, ${body.imageId}, 'completed', now())
+    `;
+    await sql`
+      insert into analysis_results (
+        id, request_id, matched_catalog_id, predicted_food_name, confidence_score,
+        nutrition_snapshot, health_insights, model_name, model_version, is_mock
+      ) values (
+        ${resultId}, ${analysisId}, ${catalogRows[0]?.id ?? null}, ${prediction.foodName},
+        ${prediction.confidence}, ${JSON.stringify(prediction.nutrition)}, ${JSON.stringify(healthInsights)},
+        ${prediction.modelName ?? "gemini"}, ${prediction.modelVersion ?? null}, false
+      )
+    `;
+
+    return c.json({
+      success: true, message: "Analysis completed.", data: {
+        analysisId, foodName: prediction.foodName, confidence: prediction.confidence,
+        nutrition: prediction.nutrition, healthBenefits: healthInsights.healthBenefits,
+        warnings: healthInsights.warnings, suggestions: healthInsights.suggestions,
+        explanation: healthInsights.explanation, classification: healthInsights.classification,
+        imageUrl: imageRows[0].image_url,
+      },
     });
   } catch (error) {
-    console.error("AI model request failed", error);
-    return c.json(
-      {
-        success: false,
-        message: "Food analysis service is unavailable.",
-      },
-      502,
-    );
+    if (geminiSucceeded) throw error;
+    console.error(JSON.stringify({ event: "gemini_request_failed", requestId: c.get("requestId"), error: error instanceof Error ? error.name : "UnknownError" }));
+    return c.json({ success: false, message: "Food analysis service is unavailable." }, 502);
   }
-  const prediction = (await modelResponse
-    .json()
-    .catch(() => null)) as ModelPrediction | null;
-  if (!modelResponse.ok || !prediction || (prediction as { success?: boolean }).success === false) {
-    return c.json(
-      {
-        success: false,
-        message:
-          "Food analysis service is unavailable.",
-      },
-      502,
-    );
-  }
-  const modelValidationError = validatePrediction(prediction);
-  if (modelValidationError) {
-    return c.json(
-      {
-        success: false,
-        message: "Food analysis service returned an invalid response.",
-      },
-      502,
-    );
-  }
-
-  const catalogRows = await sql`
-    select id
-    from nutrition_catalog
-    where lower(food_name) = lower(${prediction.foodName})
-    limit 1
-  `;
-  const analysisId = crypto.randomUUID();
-  const resultId = crypto.randomUUID();
-  const healthInsights = {
-    healthBenefits: prediction.healthBenefits ?? [],
-    warnings: prediction.warnings ?? [],
-    suggestions: prediction.suggestions ?? [],
-    explanation: prediction.explanation ?? "",
-    classification: prediction.classification,
-  };
-
-  await sql`
-    insert into analysis_requests (id, user_id, image_id, status, completed_at)
-    values (${analysisId}, ${user.id}, ${body.imageId}, 'completed', now())
-  `;
-  await sql`
-    insert into analysis_results (
-      id,
-      request_id,
-      matched_catalog_id,
-      predicted_food_name,
-      confidence_score,
-      nutrition_snapshot,
-      health_insights,
-      model_name,
-      model_version,
-      is_mock
-    )
-    values (
-      ${resultId},
-      ${analysisId},
-      ${catalogRows[0]?.id ?? null},
-      ${prediction.foodName},
-      ${prediction.confidence},
-      ${JSON.stringify(prediction.nutrition)},
-      ${JSON.stringify(healthInsights)},
-      ${prediction.modelName ?? "external-model"},
-      ${prediction.modelVersion ?? null},
-      false
-    )
-  `;
-
-  return c.json({
-    success: true,
-    message: "Analysis completed.",
-    data: {
-      analysisId,
-      foodName: prediction.foodName,
-      confidence: prediction.confidence,
-      nutrition: prediction.nutrition,
-      healthBenefits: healthInsights.healthBenefits,
-      warnings: healthInsights.warnings,
-      suggestions: healthInsights.suggestions,
-      explanation: healthInsights.explanation,
-      classification: healthInsights.classification,
-      imageUrl: imageRows[0].image_url,
-    },
-  });
 });
 
 app.get("/api/v1/analysis-history", async (c) => {
@@ -920,8 +865,72 @@ type ModelPrediction = {
   message?: string;
 };
 
+const FOOD_ANALYSIS_INSTRUCTIONS = `Analyze this food image. Identify the primary dish and estimate nutrition for the visible portion. Return only the requested JSON. Nutrition is an estimate, not medical advice. Use confidence from 0 to 1.
+
+Write for an everyday person with no nutrition knowledge. Make the advice useful and direct:
+- healthBenefits: 2-3 short, concrete positives such as steady energy, staying full longer, supporting muscle recovery, or helping a balanced diet. Do not say only "high protein", "fiber-rich", or other jargon; explain the practical benefit instead.
+- warnings: 1-3 short, non-alarming cautions in plain language, such as "May not suit a weight-loss goal if eaten often because it is calorie-dense." Explain why it matters.
+- suggestions: 2-3 simple next actions, such as add vegetables, choose water, reduce the portion, or pair it with a lighter meal later.
+- explanation: a friendly 2-3 sentence summary. State who may enjoy the meal (for energy, muscle support, or a filling meal) and who may want to adjust it (for weight loss, lower salt, or lower sugar goals).
+Avoid medical claims, diagnoses, acronyms, and unexplained terms. Do not promise weight loss or muscle gain; use supportive wording such as "can help support".`;
+
+const GEMINI_RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    foodName: { type: "string" },
+    confidence: { type: "number" },
+    nutrition: {
+      type: "object",
+      properties: {
+        calories: { type: "number" }, protein: { type: "number" }, carbohydrates: { type: "number" },
+        fats: { type: "number" }, fiber: { type: "number" }, servingSize: { type: "string" },
+      },
+      required: ["calories", "protein", "carbohydrates", "fats", "fiber"],
+    },
+    healthBenefits: { type: "array", description: "2-3 plain-language practical benefits for an everyday user.", items: { type: "string" } },
+    warnings: { type: "array", description: "1-3 plain-language cautions that explain why the food may not fit some goals.", items: { type: "string" } },
+    suggestions: { type: "array", description: "2-3 easy actions a user can take with this meal.", items: { type: "string" } },
+    explanation: { type: "string", description: "A friendly 2-3 sentence everyday summary with no unexplained nutrition jargon." },
+    classification: { type: "string", enum: ["Healthy", "Moderate", "Unhealthy"] },
+  },
+  required: ["foodName", "confidence", "nutrition", "classification"],
+};
+
+async function analyzeWithGemini(image: ArrayBuffer, mimeType: string, apiKey: string, model?: string): Promise<ModelPrediction> {
+  const selectedModel = model?.trim() || "gemini-2.5-flash";
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(selectedModel)}:generateContent`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+    signal: AbortSignal.timeout(30_000),
+    body: JSON.stringify({
+      contents: [{ parts: [
+        { text: FOOD_ANALYSIS_INSTRUCTIONS },
+        { inlineData: { mimeType, data: arrayBufferToBase64(image) } },
+      ] }],
+      generationConfig: { responseMimeType: "application/json", responseSchema: GEMINI_RESPONSE_SCHEMA, temperature: 0.2 },
+    }),
+  });
+  if (!response.ok) throw new Error(`Gemini returned ${response.status}`);
+  const payload = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+  const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
+  if (!text) throw new Error("Gemini returned no content");
+  const prediction = JSON.parse(text) as ModelPrediction;
+  prediction.modelName = "gemini";
+  prediction.modelVersion = selectedModel;
+  return prediction;
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer) {
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  }
+  return btoa(binary);
+}
+
 function validatePrediction(value: ModelPrediction): string | null {
-  if (!value.foodName?.trim()) return "foodName is required";
+  if (typeof value.foodName !== "string" || !value.foodName.trim() || value.foodName.length > 120) return "foodName is invalid";
   if (
     !Number.isFinite(value.confidence) ||
     value.confidence < 0 ||
@@ -941,6 +950,12 @@ function validatePrediction(value: ModelPrediction): string | null {
   }
   if (!["Healthy", "Moderate", "Unhealthy"].includes(value.classification))
     return "classification is invalid";
+  for (const field of ["healthBenefits", "warnings", "suggestions"] as const) {
+    const items = value[field];
+    if (items && (!Array.isArray(items) || items.length > 10 || items.some((item) => typeof item !== "string" || item.length > 300))) return `${field} is invalid`;
+  }
+  if (value.explanation !== undefined && (typeof value.explanation !== "string" || value.explanation.length > 1_500)) return "explanation is invalid";
+  if (value.nutrition.servingSize !== undefined && (typeof value.nutrition.servingSize !== "string" || value.nutrition.servingSize.length > 100)) return "nutrition.servingSize is invalid";
   return null;
 }
 

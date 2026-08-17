@@ -27,7 +27,7 @@ VITE_API_BASE_URL=http://localhost:8787
 
 1. The user selects or drags and drops a JPG, PNG, or WebP food photo.
 2. The frontend uploads the image to the backend.
-3. The backend sends the stored image to the Node.js ONNX AI service.
+3. The backend sends the stored image securely to Gemini for analysis.
 4. The backend returns the Food-101 prediction and estimated nutrition values.
 5. The frontend displays the result and stores it in analysis history.
 

@@ -496,7 +496,7 @@ flowchart TD
 | Frontend | React, Vite, TypeScript, Tailwind CSS |
 | Backend | Hono on Cloudflare Workers |
 | Database | PostgreSQL on Neon |
-| AI / Machine Learning | STMicroelectronics EfficientNet-LC Food-101 ONNX |
+| AI / Machine Learning | Gemini vision API |
 | API and Tools | Nutrition API for food data analysis |
 
 ---

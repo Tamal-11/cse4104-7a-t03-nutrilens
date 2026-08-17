@@ -33,4 +33,4 @@ namespace_id = "410402"
   period = 60
 
 [vars]
-R2_PUBLIC_BASE_URL = ""
+ALLOWED_ORIGINS = "http://localhost:3000,http://127.0.0.1:3001"

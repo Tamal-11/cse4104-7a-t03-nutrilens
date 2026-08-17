@@ -1,13 +1,11 @@
 import { spawnSync, spawn } from 'node:child_process';
-import { existsSync, copyFileSync, writeFileSync, statSync } from 'node:fs';
+import { existsSync, copyFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 const isWindows = process.platform === 'win32';
-const requiredModel = path.join(root, 'ai-node', 'models', 'st_efficientnetlcv1_224_tfs_qdq_int8.onnx');
-const oldBrokenModel = path.join(root, 'ai-node', 'models', 'food101-mobilenetv2.onnx');
 
 function ensureNodeVersion() {
   const major = Number(process.versions.node.split('.')[0]);
@@ -41,27 +39,12 @@ function checkDependencies() {
   const missing = [];
   if (!hasPackage('backend', 'hono')) missing.push('backend');
   if (!hasPackage('frontend', 'vite')) missing.push('frontend');
-  if (!hasPackage('ai-node', 'onnxruntime-node') || !hasPackage('ai-node', 'sharp') || !hasPackage('ai-node', 'tsx')) missing.push('ai-node');
 
   if (missing.length > 0) {
     console.error(`Missing dependencies for: ${missing.join(', ')}`);
     console.error('Run this once first: pnpm run setup');
     process.exit(1);
   }
-}
-
-function checkModel() {
-  if (existsSync(requiredModel) && statSync(requiredModel).size > 1_000_000) {
-    console.log('Working Food-101 ONNX model found.');
-    return;
-  }
-
-  console.error('Working Food-101 ONNX model is missing.');
-  if (existsSync(oldBrokenModel)) {
-    console.error('Found old food101-mobilenetv2.onnx, but that model returns near-uniform scores and is not used.');
-  }
-  console.error('Run this once to download the correct local model: pnpm run setup:model');
-  process.exit(1);
 }
 
 function start(name, command, env = {}, required = true) {
@@ -109,22 +92,17 @@ process.on('SIGTERM', () => shutdown(0));
 ensureNodeVersion();
 ensureLocalEnv();
 checkDependencies();
-checkModel();
 
 console.log('\nStarting NutriLens locally...');
 console.log('Frontend: http://localhost:3000');
 console.log('Local API: http://localhost:8787');
-console.log('AI service: http://127.0.0.1:8788');
+console.log('AI provider: Gemini (configured with GEMINI_API_KEY in .env)');
 console.log('Press Ctrl+C to stop all services.\n');
 
 const commonEnv = {
-  AI_MODEL_ENDPOINT: 'http://127.0.0.1:8788/predict',
-  AI_NODE_MODEL_PATH: './models/st_efficientnetlcv1_224_tfs_qdq_int8.onnx',
-  AI_NODE_MODEL_KIND: 'stmicro_effnet_int8_food101',
   LOCAL_DEMO_MODE: 'true',
 };
 
-start('AI service', 'pnpm --filter nutrilens-ai-node dev', commonEnv, true);
 start('Local API', 'pnpm --filter nutrilens-backend dev:local', commonEnv, true);
 start('Frontend', 'pnpm --filter nutrilens-frontend dev', {
   ...commonEnv,

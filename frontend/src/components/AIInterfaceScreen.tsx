@@ -40,7 +40,7 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
 
   const scanningSteps = [
     'Preparing food image...',
-    'Running Food-101 classification...',
+    'Analyzing the meal with Gemini...',
     'Comparing prediction scores...',
     'Matching nutrition information...',
     'Preparing analysis result...'

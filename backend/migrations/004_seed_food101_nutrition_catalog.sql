@@ -1,4 +1,4 @@
--- Seed Food-101 local AI nutrition catalog used by the Node.js ONNX service.
+-- Starter nutrition catalog retained for historical analysis compatibility.
 insert into public.nutrition_catalog (
   food_name, category, serving_size, calories, protein, carbohydrates, fats, fiber,
   vitamins, minerals, health_benefits, warnings, source_type

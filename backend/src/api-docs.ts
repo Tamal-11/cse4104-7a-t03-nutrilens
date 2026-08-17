@@ -199,7 +199,7 @@ export const endpointDocs: EndpointDoc[] = [
   {
     method: "POST",
     path: "/api/v1/analyze-food",
-    summary: "Analyze an uploaded food image using the configured local Node.js ONNX model service.",
+    summary: "Analyze an uploaded food image with the configured Gemini model.",
     authentication: "session required",
     headers: { "Content-Type": "application/json", Cookie: "Authentication session cookie." },
     payload: { imageId: "uuid (required)" },
@@ -208,7 +208,7 @@ export const endpointDocs: EndpointDoc[] = [
       "400": { success: false, message: "imageId is required." },
       "401": { success: false, message: "Authentication required." },
       "404": { success: false, message: "Food image was not found." },
-      "503": { success: false, message: "AI_MODEL_ENDPOINT is not configured." },
+      "503": { success: false, message: "Food analysis service is unavailable." },
     },
   },
   {

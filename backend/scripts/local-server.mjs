@@ -13,8 +13,8 @@ config({ path: path.join(repoRoot, '.env') });
 
 const PORT = Number(process.env.LOCAL_API_PORT || 8787);
 const HOST = '127.0.0.1';
-const AI_MODEL_ENDPOINT = process.env.AI_MODEL_ENDPOINT || 'http://127.0.0.1:8788/predict';
-const AI_MODEL_API_KEY = process.env.AI_MODEL_API_KEY || '';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const uploadDir = path.join(repoRoot, '.local-storage', 'uploads');
 
 const app = new Hono();
@@ -56,6 +56,32 @@ const userAccounts = new Map([
 ]);
 const logs = ['Local demo API started. Cloud database and R2 are not required in this mode.'];
 
+const FOOD_ANALYSIS_INSTRUCTIONS = `Analyze this food image. Identify the primary dish and estimate nutrition for the visible portion. Return only the requested JSON. Nutrition is an estimate, not medical advice. Use confidence from 0 to 1.
+
+Write for an everyday person with no nutrition knowledge. Make the advice useful and direct:
+- healthBenefits: 2-3 short, concrete positives such as steady energy, staying full longer, supporting muscle recovery, or helping a balanced diet. Do not say only "high protein", "fiber-rich", or other jargon; explain the practical benefit instead.
+- warnings: 1-3 short, non-alarming cautions in plain language, such as "May not suit a weight-loss goal if eaten often because it is calorie-dense." Explain why it matters.
+- suggestions: 2-3 simple next actions, such as add vegetables, choose water, reduce the portion, or pair it with a lighter meal later.
+- explanation: a friendly 2-3 sentence summary. State who may enjoy the meal (for energy, muscle support, or a filling meal) and who may want to adjust it (for weight loss, lower salt, or lower sugar goals).
+Avoid medical claims, diagnoses, acronyms, and unexplained terms. Do not promise weight loss or muscle gain; use supportive wording such as "can help support".`;
+
+const GEMINI_RESPONSE_SCHEMA = {
+  type: 'object',
+  properties: {
+    foodName: { type: 'string' }, confidence: { type: 'number' },
+    nutrition: { type: 'object', properties: {
+      calories: { type: 'number' }, protein: { type: 'number' }, carbohydrates: { type: 'number' },
+      fats: { type: 'number' }, fiber: { type: 'number' }, servingSize: { type: 'string' },
+    }, required: ['calories', 'protein', 'carbohydrates', 'fats', 'fiber'] },
+    healthBenefits: { type: 'array', description: '2-3 plain-language practical benefits for an everyday user.', items: { type: 'string' } },
+    warnings: { type: 'array', description: '1-3 plain-language cautions that explain why the food may not fit some goals.', items: { type: 'string' } },
+    suggestions: { type: 'array', description: '2-3 easy actions a user can take with this meal.', items: { type: 'string' } },
+    explanation: { type: 'string', description: 'A friendly 2-3 sentence everyday summary with no unexplained nutrition jargon.' },
+    classification: { type: 'string', enum: ['Healthy', 'Moderate', 'Unhealthy'] },
+  },
+  required: ['foodName', 'confidence', 'nutrition', 'classification'],
+};
+
 app.use(
   '*',
   cors({
@@ -72,12 +98,12 @@ app.get('/', (c) =>
     mode: 'local-demo',
     health: '/health',
     frontend: 'http://localhost:3000',
-    aiEndpoint: AI_MODEL_ENDPOINT,
+    aiProvider: 'Gemini',
   }),
 );
 
 app.get('/health', async (c) => {
-  const ai = await checkAiHealth();
+  const ai = { ready: Boolean(GEMINI_API_KEY), status: GEMINI_API_KEY ? 'configured' : 'not_configured', provider: 'Gemini', model: GEMINI_MODEL };
   return c.json({
     status: ai.ready ? 'healthy' : 'degraded',
     server: { status: 'up', mode: 'local-demo' },
@@ -158,6 +184,11 @@ app.post('/api/v1/upload-food-image', async (c) => {
     return c.json({ success: false, message: `Image is too large. Maximum allowed size is ${Math.round(maxBytes / 1024 / 1024)} MB.` }, 400);
   }
 
+  const bytes = new Uint8Array(await image.slice(0, 12).arrayBuffer());
+  if (!matchesImageSignature(bytes, image.type)) {
+    return c.json({ success: false, message: 'The file contents do not match the declared image type.' }, 400);
+  }
+
   const imageId = crypto.randomUUID();
   const safeName = (image.name || 'food-image').replace(/[^a-zA-Z0-9._-]/g, '-');
   const extension = path.extname(safeName) || mimeExtension(image.type);
@@ -203,7 +234,7 @@ app.post('/api/v1/analyze-food', async (c) => {
   const body = await readJsonSafe(c);
   const imageId = body.imageId;
 
-  if (!imageId) {
+  if (typeof imageId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(imageId)) {
     return c.json({ success: false, message: 'imageId is required.' }, 400);
   }
 
@@ -216,15 +247,12 @@ app.post('/api/v1/analyze-food', async (c) => {
   try {
     prediction = await requestPrediction(image);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Local ONNX AI service failed.';
-    console.error('AI request failed.', error);
-    logs.unshift(`AI analysis failed for ${image.fileName}: ${message}`);
+    console.error('Gemini request failed.', error instanceof Error ? error.name : 'UnknownError');
+    logs.unshift(`AI analysis failed for ${image.fileName}.`);
     return c.json(
       {
         success: false,
-        message: `Food detection failed: ${message}`,
-        details: 'The app now requires the local ONNX Food-101 model instead of returning fake demo results. Start the AI service with pnpm run dev or pnpm run dev:ai.',
-        aiEndpoint: AI_MODEL_ENDPOINT,
+        message: GEMINI_API_KEY ? 'Food analysis service is unavailable.' : 'Food analysis is not configured. Add GEMINI_API_KEY to .env.',
       },
       503,
     );
@@ -242,8 +270,8 @@ app.post('/api/v1/analyze-food', async (c) => {
     suggestions: prediction.suggestions || [],
     explanation: prediction.explanation || `${prediction.foodName} was identified with ${Math.round(prediction.confidence * 100)}% confidence.`,
     classification: prediction.classification || 'Moderate',
-    modelName: prediction.modelName || 'local-onnx-food101',
-    modelVersion: prediction.modelVersion || 'local-onnx',
+    modelName: prediction.modelName || 'gemini',
+    modelVersion: prediction.modelVersion || GEMINI_MODEL,
     topPredictions: prediction.topPredictions || [],
     responseTimeMs: Date.now() - startedAt,
   };
@@ -340,42 +368,33 @@ function authResponse(c, body = {}) {
 }
 
 async function requestPrediction(image) {
-  const form = new FormData();
+  if (!GEMINI_API_KEY) throw new Error('Gemini is not configured.');
   const buffer = await readFile(image.filePath);
-  form.append('image', new File([buffer], image.fileName, { type: image.mimeType }));
-
-  const timeoutMs = Number(process.env.AI_REQUEST_TIMEOUT_MS || 30000);
-  const response = await fetch(AI_MODEL_ENDPOINT, {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`, {
     method: 'POST',
-    headers: AI_MODEL_API_KEY ? { Authorization: `Bearer ${AI_MODEL_API_KEY}` } : undefined,
-    body: form,
-    signal: AbortSignal.timeout(timeoutMs),
+    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
+    signal: AbortSignal.timeout(30_000),
+    body: JSON.stringify({
+      contents: [{ parts: [
+        { text: FOOD_ANALYSIS_INSTRUCTIONS },
+        { inlineData: { mimeType: image.mimeType, data: buffer.toString('base64') } },
+      ] }],
+      generationConfig: { responseMimeType: 'application/json', responseSchema: GEMINI_RESPONSE_SCHEMA, temperature: 0.2 },
+    }),
   });
 
   const payload = await response.json().catch(() => null);
-  if (!response.ok || !payload || payload.success === false) {
-    throw new Error(payload?.message || `AI service failed with status ${response.status}.`);
+  if (!response.ok || !payload) {
+    throw new Error(`Gemini returned ${response.status}.`);
   }
-
-  const prediction = payload.data ?? payload;
-  if (!prediction.foodName || !prediction.nutrition) {
+  const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
+  if (!text) throw new Error('Gemini returned no content.');
+  let prediction;
+  try { prediction = JSON.parse(text); } catch { throw new Error('Gemini returned invalid JSON.'); }
+  if (!isValidPrediction(prediction)) {
     throw new Error('AI service returned an invalid prediction payload.');
   }
-
-  return prediction;
-}
-
-async function checkAiHealth() {
-  try {
-    const url = new URL(AI_MODEL_ENDPOINT);
-    url.pathname = '/health';
-    url.search = '';
-    const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
-    const payload = await response.json().catch(() => ({}));
-    return { ready: response.ok && payload.status === 'ready', status: payload.status || response.statusText, endpoint: AI_MODEL_ENDPOINT };
-  } catch {
-    return { ready: false, status: 'unreachable', endpoint: AI_MODEL_ENDPOINT };
-  }
+  return { ...prediction, modelName: 'gemini', modelVersion: GEMINI_MODEL };
 }
 
 async function readJsonSafe(c) {
@@ -388,6 +407,23 @@ async function readJsonSafe(c) {
 
 function isFileLike(value) {
   return typeof value === 'object' && value !== null && 'arrayBuffer' in value && 'name' in value;
+}
+
+function matchesImageSignature(bytes, mimeType) {
+  if (mimeType === 'image/jpeg') return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  if (mimeType === 'image/png') return [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((value, index) => bytes[index] === value);
+  if (mimeType === 'image/webp') return bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+  return false;
+}
+
+function isValidPrediction(value) {
+  if (!value || typeof value !== 'object' || typeof value.foodName !== 'string' || !value.foodName.trim() || value.foodName.length > 120) return false;
+  if (!Number.isFinite(value.confidence) || value.confidence < 0 || value.confidence > 1) return false;
+  if (!value.nutrition || !['calories', 'protein', 'carbohydrates', 'fats', 'fiber'].every((key) => Number.isFinite(value.nutrition[key]) && value.nutrition[key] >= 0)) return false;
+  if (!['Healthy', 'Moderate', 'Unhealthy'].includes(value.classification)) return false;
+  if (!['healthBenefits', 'warnings', 'suggestions'].every((field) => value[field] === undefined || (Array.isArray(value[field]) && value[field].length <= 10 && value[field].every((item) => typeof item === 'string' && item.length <= 300)))) return false;
+  return (value.explanation === undefined || (typeof value.explanation === 'string' && value.explanation.length <= 1500)) &&
+    (value.nutrition.servingSize === undefined || (typeof value.nutrition.servingSize === 'string' && value.nutrition.servingSize.length <= 100));
 }
 
 function numberOrNull(value) {
