@@ -14,7 +14,7 @@ config({ path: path.join(repoRoot, '.env') });
 const PORT = Number(process.env.LOCAL_API_PORT || 8787);
 const HOST = '127.0.0.1';
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
 const uploadDir = path.join(repoRoot, '.local-storage', 'uploads');
 
 const app = new Hono();

@@ -34,6 +34,8 @@ const app = new Hono<Env>();
 const DEFAULT_MAX_IMAGE_UPLOAD_BYTES = 8 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const ALLOWED_METHODS = ["GET", "POST", "PUT", "OPTIONS"];
+const GEMINI_MAX_ATTEMPTS = 2;
+const GEMINI_REQUEST_TIMEOUT_MS = 60_000;
 
 app.use("*", async (c, next) => {
   const requestId = c.req.header("X-Request-ID")?.slice(0, 128) || crypto.randomUUID();
@@ -470,7 +472,12 @@ app.post("/api/v1/analyze-food", async (c) => {
     const modelValidationError = validatePrediction(prediction);
     if (modelValidationError) {
       console.error(JSON.stringify({ event: "invalid_gemini_response", requestId: c.get("requestId"), reason: modelValidationError }));
-      return c.json({ success: false, message: "Food analysis service returned an invalid response." }, 502);
+      return c.json({
+        success: false,
+        message: "Food analysis service returned an invalid response.",
+        requestId: c.get("requestId"),
+        error: { code: "INVALID_MODEL_RESPONSE", retryable: false },
+      }, 502);
     }
     geminiSucceeded = true;
 
@@ -516,8 +523,14 @@ app.post("/api/v1/analyze-food", async (c) => {
     });
   } catch (error) {
     if (geminiSucceeded) throw error;
-    console.error(JSON.stringify({ event: "gemini_request_failed", requestId: c.get("requestId"), error: error instanceof Error ? error.name : "UnknownError" }));
-    return c.json({ success: false, message: "Food analysis service is unavailable." }, 502);
+    const diagnostic = geminiDiagnostic(error);
+    console.error(JSON.stringify({ event: "gemini_request_failed", requestId: c.get("requestId"), ...diagnostic }));
+    return c.json({
+      success: false,
+      message: "Food analysis service is unavailable.",
+      requestId: c.get("requestId"),
+      error: diagnostic,
+    }, 502);
   }
 });
 
@@ -784,10 +797,13 @@ async function getCurrentUser(
     return null;
   }
 
-  const payload = (await response.json()) as {
+  const payload = (await response.json().catch(() => null)) as {
     session?: { userId?: string };
     user?: { id?: string; email?: string; name?: string };
-  };
+  } | null;
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
   const id = payload.user?.id ?? payload.session?.userId;
   const email = payload.user?.email;
 
@@ -865,6 +881,13 @@ type ModelPrediction = {
   message?: string;
 };
 
+type GeminiFailure = Error & {
+  code: string;
+  retryable: boolean;
+  status?: number;
+  attempts?: number;
+};
+
 const FOOD_ANALYSIS_INSTRUCTIONS = `Analyze this food image. Identify the primary dish and estimate nutrition for the visible portion. Return only the requested JSON. Nutrition is an estimate, not medical advice. Use confidence from 0 to 1.
 
 Write for an everyday person with no nutrition knowledge. Make the advice useful and direct:
@@ -897,27 +920,92 @@ const GEMINI_RESPONSE_SCHEMA = {
 };
 
 async function analyzeWithGemini(image: ArrayBuffer, mimeType: string, apiKey: string, model?: string): Promise<ModelPrediction> {
-  const selectedModel = model?.trim() || "gemini-2.5-flash";
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(selectedModel)}:generateContent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    signal: AbortSignal.timeout(30_000),
-    body: JSON.stringify({
-      contents: [{ parts: [
-        { text: FOOD_ANALYSIS_INSTRUCTIONS },
-        { inlineData: { mimeType, data: arrayBufferToBase64(image) } },
-      ] }],
-      generationConfig: { responseMimeType: "application/json", responseSchema: GEMINI_RESPONSE_SCHEMA, temperature: 0.2 },
-    }),
+  const selectedModel = model?.trim() || "gemini-2.5-flash-lite";
+  const requestBody = JSON.stringify({
+    contents: [{ parts: [
+      { text: FOOD_ANALYSIS_INSTRUCTIONS },
+      { inlineData: { mimeType, data: arrayBufferToBase64(image) } },
+    ] }],
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseSchema: GEMINI_RESPONSE_SCHEMA,
+      temperature: 0.2,
+      maxOutputTokens: 1024,
+      thinkingConfig: { thinkingBudget: 0 },
+    },
   });
-  if (!response.ok) throw new Error(`Gemini returned ${response.status}`);
-  const payload = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-  const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
-  if (!text) throw new Error("Gemini returned no content");
-  const prediction = JSON.parse(text) as ModelPrediction;
-  prediction.modelName = "gemini";
-  prediction.modelVersion = selectedModel;
-  return prediction;
+
+  let lastError: GeminiFailure | null = null;
+  for (let attempt = 1; attempt <= GEMINI_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(selectedModel)}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        signal: AbortSignal.timeout(GEMINI_REQUEST_TIMEOUT_MS),
+        body: requestBody,
+      });
+      if (!response.ok) {
+        const error = createGeminiFailure(
+          `UPSTREAM_HTTP_${response.status}`,
+          isRetryableGeminiStatus(response.status),
+          response.status,
+        );
+        if (!error.retryable || attempt === GEMINI_MAX_ATTEMPTS) throw error;
+        lastError = error;
+      } else {
+        const payload = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+        const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
+        if (!text) throw createGeminiFailure("EMPTY_RESPONSE", true);
+        let prediction: ModelPrediction;
+        try {
+          prediction = JSON.parse(text) as ModelPrediction;
+        } catch {
+          throw createGeminiFailure("INVALID_JSON_RESPONSE", true);
+        }
+        prediction.modelName = "gemini";
+        prediction.modelVersion = selectedModel;
+        return prediction;
+      }
+    } catch (error) {
+      const failure = toGeminiFailure(error);
+      failure.attempts = attempt;
+      lastError = failure;
+      if (!failure.retryable || attempt === GEMINI_MAX_ATTEMPTS) throw failure;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, attempt * 400));
+  }
+
+  throw lastError ?? createGeminiFailure("UNKNOWN_ERROR", false);
+}
+
+function isRetryableGeminiStatus(status: number) {
+  return status === 408 || status === 429 || status >= 500;
+}
+
+function createGeminiFailure(code: string, retryable: boolean, status?: number): GeminiFailure {
+  const error = new Error(code) as GeminiFailure;
+  error.name = "GeminiFailure";
+  error.code = code;
+  error.retryable = retryable;
+  error.status = status;
+  return error;
+}
+
+function toGeminiFailure(error: unknown): GeminiFailure {
+  if (error instanceof Error && error.name === "GeminiFailure") return error as GeminiFailure;
+  const isTimeout = error instanceof Error && error.name === "TimeoutError";
+  return createGeminiFailure(isTimeout ? "REQUEST_TIMEOUT" : "NETWORK_ERROR", true);
+}
+
+function geminiDiagnostic(error: unknown) {
+  const failure = toGeminiFailure(error);
+  return {
+    code: failure.code,
+    upstreamStatus: failure.status ?? null,
+    attempts: failure.attempts ?? 1,
+    retryable: failure.retryable,
+  };
 }
 
 function arrayBufferToBase64(buffer: ArrayBuffer) {

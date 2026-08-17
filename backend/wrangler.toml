@@ -33,4 +33,4 @@ namespace_id = "410402"
   period = 60
 
 [vars]
-ALLOWED_ORIGINS = "http://localhost:3000,http://127.0.0.1:3001"
+ALLOWED_ORIGINS = "http://localhost:3000,http://127.0.0.1:3001,https://cse4104-7a-t03-nutrilens.pages.dev"
