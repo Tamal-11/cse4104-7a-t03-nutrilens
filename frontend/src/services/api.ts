@@ -16,12 +16,12 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    console.error('[NutriLens API error]', {
+    console.error(`[NutriLens API error] ${JSON.stringify({
       path,
       status: response.status,
       requestId: payload.requestId ?? null,
       diagnostic: payload.error ?? null,
-    });
+    })}`);
     throw new Error(payload.message || payload.error || `Request failed (${response.status})`);
   }
   return payload as T;
