@@ -13,5 +13,5 @@ for (const path of [
 }
 
 console.log('Removed installed dependencies and build output.');
-console.log('Package lock files were kept so npm ci remains reproducible.');
-console.log('Run: npm run setup');
+console.log('pnpm-lock.yaml was kept so installs remain reproducible.');
+console.log('Run: pnpm run setup');

@@ -34,7 +34,7 @@ NutriLens is a food image based nutrition analysis system. Users can create an a
 | Authentication   | Neon Auth built on Better Auth |
 | File Storage     | Cloudflare R2                  |
 | Language         | TypeScript                     |
-| Package Manager  | npm                           |
+| Package Manager  | pnpm                           |
 | API Testing Tool | Thunder Client                 |
 
 ## Backend Project Setup
@@ -71,14 +71,14 @@ README.md
 The backend can be started locally with:
 
 ```bash
-npm run setup
-npm --prefix backend run dev
+pnpm run setup
+pnpm --filter nutrilens-backend dev
 ```
 
 Database migrations can be applied with:
 
 ```bash
-npm run db:migrate
+pnpm run db:migrate
 ```
 
 ## Database Design Summary

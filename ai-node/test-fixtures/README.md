@@ -10,7 +10,7 @@ The smoke test verifies that the model preprocessing and label mapping remain al
 Run from the repository root:
 
 ```bash
-npm run inference:check
+pnpm run inference:check
 ```
 
 The thresholds are intentionally below the currently observed values so the check catches material preprocessing regressions without depending on exact floating-point output.

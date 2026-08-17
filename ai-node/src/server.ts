@@ -145,7 +145,7 @@ app.post('/predict', async (c) => {
       return c.json(
         {
           success: false,
-          message: `Working Food-101 ONNX model was not found at ${env.modelPath}. Run: npm run setup:model`,
+          message: `Working Food-101 ONNX model was not found at ${env.modelPath}. Run: pnpm run setup:model`,
         },
         503,
       );
@@ -177,13 +177,13 @@ app.post('/predict', async (c) => {
 
     const scores = Array.from(outputTensor.data as Float32Array | Int32Array | number[]).map(Number);
     if (scores.length !== labels.length) {
-      throw new Error(`Model output class count (${scores.length}) does not match labels count (${labels.length}). Use the Food-101 ONNX model from npm run setup:model.`);
+      throw new Error(`Model output class count (${scores.length}) does not match labels count (${labels.length}). Use the Food-101 ONNX model from pnpm run setup:model.`);
     }
 
     const stats = scoreStats(scores);
     if (!Number.isFinite(stats.range) || stats.range < env.minOutputDynamicRange) {
       throw new Error(
-        `ONNX model returned near-uniform scores. This usually means the old broken food101-mobilenetv2.onnx is being used. Run npm run setup:model and keep AI_NODE_MODEL_PATH=./models/st_efficientnetlcv1_224_tfs_qdq_int8.onnx. Output range: ${stats.range}`,
+        `ONNX model returned near-uniform scores. This usually means the old broken food101-mobilenetv2.onnx is being used. Run pnpm run setup:model and keep AI_NODE_MODEL_PATH=./models/st_efficientnetlcv1_224_tfs_qdq_int8.onnx. Output range: ${stats.range}`,
       );
     }
 

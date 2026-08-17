@@ -2,7 +2,7 @@
 
 NutriLens is an AI based food recognition and nutrition analysis system for CSE4104-7A-T03.
 
-The project includes a React frontend, backend API, database integration, and a local AI service for food image classification. For local development, the project can run using npm without requiring the production Neon or Cloudflare setup.
+The project includes a React frontend, backend API, database integration, and a local AI service for food image classification. For local development, the project can run using pnpm without requiring the production Neon or Cloudflare setup.
 
 | Service | URL | Purpose |
 |---|---|---|
@@ -86,8 +86,8 @@ The project does not use ImageNet mean/std normalization or center cropping for 
 After making AI-related changes, run:
 
 ```bash
-npm run model:check
-npm run inference:check
+pnpm run model:check
+pnpm run inference:check
 ```
 
 The inference check tests the preprocessing and verifies representative Food-101 predictions.
@@ -97,14 +97,20 @@ The inference check tests the preprocessing and verifies representative Food-101
 ### Requirements
 
 - Node.js 22 or newer
-- npm
+- pnpm
 - Internet connection for the first dependency and model setup
 
-Check Node and npm:
+Check Node and pnpm:
 
 ```bash
 node -v
-npm -v
+pnpm -v
+```
+
+If `pnpm` is not available, enable the package manager shim included with Node.js:
+
+```bash
+corepack enable
 ```
 
 ### 1. Install dependencies
@@ -112,26 +118,26 @@ npm -v
 From the project root:
 
 ```bash
-npm run setup
+pnpm run setup
 ```
 
 ### 2. Download the AI model
 
 ```bash
-npm run setup:model
+pnpm run setup:model
 ```
 
 Then verify it:
 
 ```bash
-npm run model:check
-npm run inference:check
+pnpm run model:check
+pnpm run inference:check
 ```
 
 ### 3. Start the project
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 Open:
@@ -160,17 +166,17 @@ Local demo mode does not require Neon Auth. A test email and password can be use
 ## Useful commands
 
 ```bash
-npm run setup            # install dependencies
-npm run setup:model      # download the Food-101 model
-npm run model:check      # verify the ONNX model
-npm run inference:check  # test AI preprocessing and predictions
-npm run typecheck        # run TypeScript checks
-npm run dev              # start frontend, backend, and AI service
-npm run dev:ai           # run AI service only
-npm run dev:api:local    # run local backend only
-npm run dev:frontend     # run frontend only
-npm run db:migrate       # run production database migrations
-npm run clean:deps       # remove node_modules/build output, keep lockfiles
+pnpm run setup            # install dependencies
+pnpm run setup:model      # download the Food-101 model
+pnpm run model:check      # verify the ONNX model
+pnpm run inference:check  # test AI preprocessing and predictions
+pnpm run typecheck        # run TypeScript checks
+pnpm run dev              # start frontend, backend, and AI service
+pnpm run dev:ai           # run AI service only
+pnpm run dev:api:local    # run local backend only
+pnpm run dev:frontend     # run frontend only
+pnpm run db:migrate       # run production database migrations
+pnpm run clean:deps       # remove node_modules/build output, keep lockfiles
 ```
 
 ## Project structure

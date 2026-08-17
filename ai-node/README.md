@@ -17,11 +17,11 @@ This package runs the local Node.js ONNX food-recognition service used by the Nu
 From the project root:
 
 ```bash
-npm run setup
-npm run setup:model
-npm run model:check
-npm run inference:check
-npm run dev
+pnpm run setup
+pnpm run setup:model
+pnpm run model:check
+pnpm run inference:check
+pnpm run dev
 ```
 
 The model is saved here:
@@ -62,7 +62,7 @@ Upstream model configuration:
 Regression check:
 
 ```bash
-npm run inference:check
+pnpm run inference:check
 ```
 
 This builds the AI service, starts it on a temporary local port, verifies the `/health` preprocessing metadata, and checks representative hamburger and sushi images against minimum-confidence thresholds.
@@ -70,7 +70,7 @@ This builds the AI service, starts it on a temporary local port, verifies the `/
 ## Run only the AI service
 
 ```bash
-npm run dev:ai
+pnpm run dev:ai
 ```
 
 Check it:

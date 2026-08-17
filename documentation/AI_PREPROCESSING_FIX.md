@@ -33,7 +33,7 @@ Upstream configuration:
 - Added preprocessing metadata to `/health`.
 - Bumped the local model integration version from `local-onnx-food101-v2` to `local-onnx-food101-v3`.
 - Updated the model check's float test input to the expected `[0, 1]` range.
-- Added `npm run inference:check` as a regression test using representative hamburger and sushi fixtures.
+- Added `pnpm run inference:check` as a regression test using representative hamburger and sushi fixtures.
 
 ## Verification
 
@@ -60,7 +60,7 @@ The regression test also verifies that `/health` reports:
 Run the checks from the repository root:
 
 ```bash
-npm run typecheck
-npm run model:check
-npm run inference:check
+pnpm run typecheck
+pnpm run model:check
+pnpm run inference:check
 ```

@@ -60,11 +60,11 @@ Nutrition values are catalog estimates for approximately 100 g. The system does 
 ## Local setup
 
 ```bash
-npm run setup
-npm run setup:model
-npm run model:check
-npm run inference:check
-npm run dev
+pnpm run setup
+pnpm run setup:model
+pnpm run model:check
+pnpm run inference:check
+pnpm run dev
 ```
 
 ## Current limitation

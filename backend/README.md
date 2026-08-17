@@ -18,11 +18,11 @@ NutriLens uses a Hono backend. Production runs as a Cloudflare Worker with Neon 
 From the repository root:
 
 ```bash
-npm run setup
-npm run setup:model
-npm run model:check
-npm run inference:check
-npm run dev
+pnpm run setup
+pnpm run setup:model
+pnpm run model:check
+pnpm run inference:check
+pnpm run dev
 ```
 
 Local services:
@@ -63,13 +63,13 @@ npx wrangler secret put AI_MODEL_API_KEY
 Run migrations from the repository root:
 
 ```bash
-npm run db:migrate
+pnpm run db:migrate
 ```
 
 Deploy from the repository root:
 
 ```bash
-npm run deploy
+pnpm run deploy
 ```
 
 ## Security controls

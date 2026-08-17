@@ -12,7 +12,7 @@ const labelsCount = 101;
 
 if (!existsSync(modelPath)) {
   console.error(`Model missing: ${modelPath}`);
-  console.error('Run: npm run setup:model');
+  console.error('Run: pnpm run setup:model');
   process.exit(1);
 }
 

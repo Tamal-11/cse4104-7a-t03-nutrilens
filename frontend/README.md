@@ -7,8 +7,8 @@ The frontend is a React + Vite + TypeScript interface for the NutriLens food ana
 From the repository root:
 
 ```bash
-npm run setup
-npm run dev
+pnpm run setup
+pnpm run dev
 ```
 
 The frontend runs at:

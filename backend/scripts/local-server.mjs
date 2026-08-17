@@ -223,7 +223,7 @@ app.post('/api/v1/analyze-food', async (c) => {
       {
         success: false,
         message: `Food detection failed: ${message}`,
-        details: 'The app now requires the local ONNX Food-101 model instead of returning fake demo results. Start the AI service with npm run dev or npm run dev:ai.',
+        details: 'The app now requires the local ONNX Food-101 model instead of returning fake demo results. Start the AI service with pnpm run dev or pnpm run dev:ai.',
         aiEndpoint: AI_MODEL_ENDPOINT,
       },
       503,

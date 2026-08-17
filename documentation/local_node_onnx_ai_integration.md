@@ -13,11 +13,11 @@ The model is an STMicroelectronics EfficientNet-LC Food-101 QDQ INT8 ONNX model 
 ## Setup
 
 ```bash
-npm run setup
-npm run setup:model
-npm run model:check
-npm run inference:check
-npm run dev
+pnpm run setup
+pnpm run setup:model
+pnpm run model:check
+pnpm run inference:check
+pnpm run dev
 ```
 
 ## Preprocessing
