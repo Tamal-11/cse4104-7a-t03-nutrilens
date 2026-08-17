@@ -144,7 +144,7 @@ flowchart LR
     API --> AUTH[Authentication and Profile Service]
     AUTH --> DB[(PostgreSQL Database on Neon)]
     API --> AI[AI Food Recognition Service]
-    AI --> MODEL[YOLOv8n / MobileNetV3 / ShuffleNet / EfficientNet-lite]
+    AI --> MODEL[EfficientNet-LC Food-101]
     AI --> NAPI[Nutrition API]
     NAPI --> REC[Recommendation Engine]
     REC --> API
@@ -496,7 +496,7 @@ flowchart TD
 | Frontend | React, Vite, TypeScript, Tailwind CSS |
 | Backend | Hono on Cloudflare Workers |
 | Database | PostgreSQL on Neon |
-| AI / Machine Learning | YOLOv8n, MobileNetV3, ShuffleNet, EfficientNet-lite |
+| AI / Machine Learning | STMicroelectronics EfficientNet-LC Food-101 ONNX |
 | API and Tools | Nutrition API for food data analysis |
 
 ---

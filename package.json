@@ -8,7 +8,6 @@
     "start:local": "node scripts/start-local.mjs",
     "dev:local": "node scripts/start-local.mjs",
     "dev:frontend": "pnpm --filter nutrilens-frontend dev",
-    "dev:backend": "pnpm --filter nutrilens-backend dev",
     "dev:api:local": "pnpm --filter nutrilens-backend dev:local",
     "dev:ai": "pnpm --filter nutrilens-ai-node dev",
     "build:frontend": "pnpm --filter nutrilens-frontend build",
@@ -19,11 +18,13 @@
     "typecheck": "pnpm run typecheck:frontend && pnpm run typecheck:backend && pnpm run typecheck:ai",
     "model:download": "pnpm --filter nutrilens-ai-node model:download",
     "model:check": "pnpm --filter nutrilens-ai-node model:check",
+    "inference:check": "pnpm --filter nutrilens-ai-node inference:check",
     "deploy": "pnpm --filter nutrilens-backend deploy",
     "db:migrate": "pnpm --filter nutrilens-backend db:migrate",
     "clean:deps": "node scripts/clean-deps.mjs",
     "setup": "node scripts/setup-local.mjs",
     "setup:model": "pnpm --filter nutrilens-ai-node model:download",
-    "setup:all": "pnpm run setup && pnpm run setup:model"
+    "setup:all": "pnpm run setup && pnpm run setup:model",
+    "dev:backend": "pnpm --filter nutrilens-backend dev"
   }
 }

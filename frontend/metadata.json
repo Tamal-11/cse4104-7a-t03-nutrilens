@@ -1,8 +1,6 @@
 {
-  "name": "Remix: NutriLens",
-  "description": "NutriLens is an AI-powered nutrition tracker that lets you upload. meal images to get instant calorie breakdowns, macronutrient pie charts, advantages, and risks assessment.",
+  "name": "NutriLens",
+  "description": "Food-101 image recognition with estimated nutrition information.",
   "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "majorCapabilities": []
 }

@@ -71,14 +71,14 @@ README.md
 The backend can be started locally with:
 
 ```bash
-pnpm install
-pnpm dev:backend
+pnpm run setup
+pnpm --filter nutrilens-backend dev
 ```
 
 Database migrations can be applied with:
 
 ```bash
-pnpm db:migrate
+pnpm run db:migrate
 ```
 
 ## Database Design Summary

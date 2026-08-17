@@ -2,111 +2,239 @@
 
 NutriLens is an AI based food recognition and nutrition analysis system for CSE4104-7A-T03.
 
-The project has a local demo mode using pnpm, a local API, and a local ONNX Food-101 model. Setup is explicit, so `pnpm run dev` does not install packages or download random files.
+The project includes a React frontend, backend API, database integration, and a local AI service for food image classification. For local development, the project can run using pnpm without requiring the production Neon or Cloudflare setup.
 
 | Service | URL | Purpose |
 |---|---|---|
 | Frontend | `http://localhost:3000` | React/Vite user interface |
-| Local API | `http://localhost:8787` | Demo backend compatible with the frontend routes |
-| Local AI | `http://127.0.0.1:8788` | Required Node.js ONNX Food-101 service for real image detection. |
+| Local API | `http://localhost:8787` | Local backend used by the frontend |
+| Local AI | `http://127.0.0.1:8788` | Node.js ONNX Food-101 image classification service |
+
+## Main features
+
+- User registration and login
+- User profile and analysis history
+- Food image upload with click-to-browse and drag-and-drop
+- AI based food recognition
+- Estimated calorie and nutrition information shown on a 100 g basis
+- Food classification as Healthy, Moderate, or Unhealthy
+- Local development mode
+- Production backend support using Cloudflare Workers, Neon, and R2
+
+## AI integration
+
+NutriLens uses a Food-101 image classification model to identify food from an uploaded image.
+
+The active AI service is located in:
+
+```text
+ai-node/
+```
+
+The current model is:
+
+```text
+st_efficientnetlcv1_224_tfs_qdq_int8.onnx
+```
+
+It is an STMicroelectronics EfficientNet-LC Food-101 ONNX model with 101 food classes.
+
+The basic AI flow is:
+
+```text
+User uploads food image
+        ↓
+Frontend
+        ↓
+Backend API
+        ↓
+AI service
+        ↓
+Food-101 ONNX model
+        ↓
+Food prediction
+        ↓
+Nutrition data lookup
+        ↓
+Result shown in frontend
+```
+
+The backend does not generate fake food results when the AI service is unavailable. If the AI service fails, the frontend receives an error instead.
+
+### AI preprocessing
+
+The model expects the uploaded image to be prepared before inference.
+
+The current preprocessing is:
+
+```text
+Image
+  ↓
+Convert to RGB
+  ↓
+Resize to 224 x 224
+  ↓
+Nearest-neighbor interpolation
+  ↓
+Scale pixel values using 1/255
+  ↓
+ONNX model
+```
+
+The project does not use ImageNet mean/std normalization or center cropping for this model.
+
+After making AI-related changes, run:
+
+```bash
+pnpm run model:check
+pnpm run inference:check
+```
+
+The inference check tests the preprocessing and verifies representative Food-101 predictions.
 
 ## Run locally
 
-Requirements:
+### Requirements
 
 - Node.js 22 or newer
-- pnpm 11 or newer
-- Internet connection only for the one-time setup commands
+- pnpm
+- Internet connection for the first dependency and model setup
 
-First install dependencies once:
+Check Node and pnpm:
+
+```bash
+node -v
+pnpm -v
+```
+
+If `pnpm` is not available, enable the package manager shim included with Node.js:
+
+```bash
+corepack enable
+```
+
+### 1. Install dependencies
+
+From the project root:
 
 ```bash
 pnpm run setup
 ```
 
-Then download the working Food-101 ONNX model once:
+### 2. Download the AI model
 
 ```bash
 pnpm run setup:model
+```
+
+Then verify it:
+
+```bash
 pnpm run model:check
+pnpm run inference:check
 ```
 
-Then start the app:
+### 3. Start the project
 
 ```bash
 pnpm run dev
 ```
 
-`pnpm run dev` only starts the services. It does not run `pnpm install` and does not download models. If dependencies or the model are missing, it prints the exact setup command to run.
+Open:
 
-Press `Ctrl+C` to stop all services.
-
-
-## Package manager note
-
-This repository uses a pnpm workspace and a single root `pnpm-lock.yaml`. If you previously installed dependencies with npm, clean and reinstall once:
-
-```bash
-pnpm run clean:deps
-pnpm run setup
-pnpm run setup:model
-pnpm run dev
+```text
+http://localhost:3000
 ```
 
+Press `Ctrl+C` in the terminal to stop the services.
 
 ## Demo login
 
-Local demo mode does not require Neon Auth. You can register or sign in with any email/password in the UI. The local API creates a demo session automatically.
+Local demo mode does not require Neon Auth. A test email and password can be used through the frontend.
 
 ## Local image analysis flow
 
 1. Open `http://localhost:3000`.
-2. Register or sign in with any test email.
-3. Upload a JPG, PNG, or WebP food image.
-4. The local API saves the image under `.local-storage/uploads/`.
-5. The local API sends the image to the Node ONNX AI service. If AI is offline, the backend returns an error instead of fake demo analysis.
-6. The UI shows the food analysis result.
+2. Register or sign in with a test account.
+3. Upload or drag and drop a JPG, PNG, or WebP food image.
+4. The local backend saves the uploaded image.
+5. The backend sends it to the local ONNX AI service.
+6. The AI service predicts the food class.
+7. The backend matches the food with nutrition data.
+8. The frontend displays the result.
 
 ## Useful commands
 
 ```bash
-pnpm run setup            # install dependencies once
-pnpm run setup:model      # download working Food-101 ONNX model once
-pnpm run model:check      # verify the ONNX model returns usable scores
-pnpm run dev              # start local demo, no downloads
-pnpm run typecheck        # frontend + backend + AI TypeScript checks
-pnpm run dev:ai           # local ONNX AI service only
-pnpm run dev:api:local    # local demo API only
-pnpm run dev:frontend     # frontend only
-pnpm run db:migrate       # production Neon migrations
+pnpm run setup            # install dependencies
+pnpm run setup:model      # download the Food-101 model
+pnpm run model:check      # verify the ONNX model
+pnpm run inference:check  # test AI preprocessing and predictions
+pnpm run typecheck        # run TypeScript checks
+pnpm run dev              # start frontend, backend, and AI service
+pnpm run dev:ai           # run AI service only
+pnpm run dev:api:local    # run local backend only
+pnpm run dev:frontend     # run frontend only
+pnpm run db:migrate       # run production database migrations
+pnpm run clean:deps       # remove node_modules/build output, keep lockfiles
 ```
 
 ## Project structure
 
 ```text
 frontend/       React + Vite frontend
-backend/        Cloudflare Worker backend and local demo API
-ai-node/        Node.js ONNX Runtime AI service
-documentation/  System, API, database, and AI integration docs
+backend/        Backend API and local demo server
+ai-node/        Active Node.js ONNX AI service
+documentation/  Project and AI documentation
 diagrams/       Project diagrams
 designs/        UI/design assets
 tests/          Test resources
 ```
 
-## Production/cloud mode
+## Production setup
 
-The original Cloudflare Worker backend is still available in `backend/src/index.ts`. Production mode requires real values for:
+The production Cloudflare Worker backend is available in:
+
+```text
+backend/src/index.ts
+```
+
+Production mode requires environment variables such as:
 
 ```text
 DATABASE_URL
 NEON_AUTH_URL
-R2_PUBLIC_BASE_URL or private R2 image route
+ALLOWED_ORIGINS
+R2_PUBLIC_BASE_URL
 AI_MODEL_ENDPOINT
-AI_MODEL_API_KEY, if enabled
+AI_MODEL_API_KEY
 ```
 
-Do not commit or submit real `.env` files. Keep credentials only in your private local `.env` or deployment secrets.
+Do not upload real `.env` files or API keys to GitHub.
 
-## AI runtime note
+## Current limitations
 
-The old Python placeholder AI code is not part of the active detection path. NutriLens uses the local Node.js ONNX service in `ai-node/`. The backend no longer silently returns repeated demo food when AI is unavailable. The old `food101-mobilenetv2.onnx` file is intentionally not used because it returns near-uniform outputs and causes wrong 1% predictions.
+- The AI model only recognizes Food-101 classes.
+- It gives one main food prediction for an image.
+- It does not estimate portion size.
+- Nutrition values are estimated from the nutrition database on an approximately 100 g basis; the photographed portion is not measured.
+- It does not detect ingredients or allergens directly from the image.
+- User profile information is not yet used for personalized AI recommendations.
+- The system is an academic project and should not be treated as medical or clinical advice.
+
+## Team
+
+**Team:** CSE4104-7A-T03  
+**Section:** 7A  
+**Project:** NutriLens - AI Based Food Recognition and Nutrition Analysis System
+
+| Name | Student ID | Role |
+|---|---|---|
+| Md. Arafat Hossen | 11230121099 | Team Leader |
+| Md. Saiful Islam Anik | 11230121086 | Backend Developer |
+| Md. Azizul Haque Rifat | 11230121087 | AI Engineer |
+| Gazi Nafisa Maliat | 11250122046 | Frontend Designer |
+
+## Repository
+
+https://github.com/Tamal-11/cse4104-7a-t03-nutrilens

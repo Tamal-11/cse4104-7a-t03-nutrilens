@@ -59,7 +59,7 @@ const logs = ['Local demo API started. Cloud database and R2 are not required in
 app.use(
   '*',
   cors({
-    origin: (origin) => ['http://localhost:3000'].includes(origin) ? origin : '',
+    origin: (origin) => ['http://localhost:3000', 'http://127.0.0.1:3000'].includes(origin) ? origin : '',
     allowHeaders: ['Authorization', 'Content-Type'],
     allowMethods: ['GET', 'POST', 'PUT', 'OPTIONS'],
     credentials: true,
@@ -216,12 +216,15 @@ app.post('/api/v1/analyze-food', async (c) => {
   try {
     prediction = await requestPrediction(image);
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Local ONNX AI service failed.';
     console.error('AI request failed.', error);
-    logs.unshift(`AI analysis failed for ${image.fileName}.`);
+    logs.unshift(`AI analysis failed for ${image.fileName}: ${message}`);
     return c.json(
       {
         success: false,
-        message: 'Food detection service is unavailable.',
+        message: `Food detection failed: ${message}`,
+        details: 'The app now requires the local ONNX Food-101 model instead of returning fake demo results. Start the AI service with pnpm run dev or pnpm run dev:ai.',
+        aiEndpoint: AI_MODEL_ENDPOINT,
       },
       503,
     );

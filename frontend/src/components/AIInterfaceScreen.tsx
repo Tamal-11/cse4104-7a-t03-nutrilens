@@ -15,6 +15,9 @@ interface AIInterfaceScreenProps {
   selectedScan: FoodAnalysis | null;
 }
 
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+
 export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedScan }: AIInterfaceScreenProps) {
   const [scanState, setScanState] = useState<'upload' | 'scanning' | 'results'>(
     selectedScan ? 'results' : 'upload'
@@ -25,6 +28,7 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [uploadedAnalysis, setUploadedAnalysis] = useState<FoodAnalysis | null>(null);
   const [error, setError] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // If a scan was loaded, show results
@@ -35,11 +39,11 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
   }, [selectedScan]);
 
   const scanningSteps = [
-    'Initializing AI Vision Engine...',
-    'Performing Multi-Spectra Nutrient Audit...',
-    'Matching local food taxonomy databases...',
-    'Calculating biological glycemic ratios...',
-    'Extracting dietary allergen metrics...'
+    'Preparing food image...',
+    'Running Food-101 classification...',
+    'Comparing prediction scores...',
+    'Matching nutrition information...',
+    'Preparing analysis result...'
   ];
 
   useEffect(() => {
@@ -55,22 +59,41 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
     return () => clearInterval(interval);
   }, [scanState]);
 
+  const processFile = async (file: File) => {
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setError('Please use a JPG, PNG, or WebP image.');
+      return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setError('Image is too large. Maximum size is 8 MB.');
+      return;
+    }
+
+    setError('');
+    setUploadedImageUrl(URL.createObjectURL(file));
+    setScanState('scanning');
+    try {
+      const analysis = await api.analyzeImage(file);
+      setUploadedAnalysis(analysis);
+      onAddHistory(analysis);
+      setScanState('results');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to analyze this image.');
+      setScanState('upload');
+    }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setError('');
-      setUploadedImageUrl(URL.createObjectURL(file));
-      setScanState('scanning');
-      try {
-        const analysis = await api.analyzeImage(file);
-        setUploadedAnalysis(analysis);
-        onAddHistory(analysis);
-        setScanState('results');
-      } catch (cause) {
-        setError(cause instanceof Error ? cause.message : 'Unable to analyze this image.');
-        setScanState('upload');
-      }
-    }
+    e.target.value = '';
+    if (file) await processFile(file);
+  };
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) await processFile(file);
   };
 
   const triggerFileSelect = () => {
@@ -134,25 +157,35 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
               </div>
 
               {/* Dash-outlined Upload Zone Container */}
-              <div className="w-full h-36 border-2 border-dashed border-[#8bb874] rounded-2xl bg-[#f7faf5] flex items-center justify-center p-4">
-                <button
-                  type="button"
-                  onClick={triggerFileSelect}
-                  aria-label="Add a food photo"
-                  title="Add a food photo"
-                  className="flex flex-col items-center gap-2 text-[#599b38]"
-                >
-                  <span className="w-14 h-14 rounded-full bg-[#e8f3e2] hover:bg-[#dcefd2] flex items-center justify-center transition-colors">
+              <div
+                onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setIsDragging(true); }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsDragging(false);
+                }}
+                onDrop={handleDrop}
+                onClick={triggerFileSelect}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') triggerFileSelect(); }}
+                className={`w-full h-40 border-2 border-dashed rounded-2xl flex items-center justify-center p-4 cursor-pointer transition-colors ${
+                  isDragging ? 'border-[#4f8f30] bg-[#eaf5e4]' : 'border-[#8bb874] bg-[#f7faf5] hover:bg-[#f0f7ec]'
+                }`}
+              >
+                <div className="flex flex-col items-center gap-2 text-[#599b38] pointer-events-none">
+                  <span className="w-14 h-14 rounded-full bg-[#e8f3e2] flex items-center justify-center">
                     <ImagePlus className="w-7 h-7" />
                   </span>
-                  <span className="text-[10px] font-bold">Add photo</span>
-                </button>
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={handleFileUpload} 
-                  accept="image/*" 
-                  className="hidden" 
+                  <span className="text-xs font-bold">{isDragging ? 'Drop photo here' : 'Drag & drop a photo or click to browse'}</span>
+                  <span className="text-[9px] font-semibold text-slate-400">JPG, PNG or WebP · max 8 MB</span>
+                </div>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
                 />
               </div>
 
@@ -174,7 +207,7 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
                 <Sparkles className="w-8 h-8 text-[#599b38] animate-pulse" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-slate-800">Vision System Auditing</h4>
+                <h4 className="text-sm font-bold text-slate-800">Analyzing Food Image</h4>
                 <p className="text-[10px] text-slate-400 font-mono mt-1.5">{scanningSteps[scanStep]}</p>
               </div>
             </motion.div>
@@ -230,32 +263,36 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
                   
                   <div className="flex items-center gap-2">
                     <Flame className="w-3.5 h-3.5 text-[#599b38] fill-current" />
-                    <span>Calories : <span className="font-extrabold text-slate-900">{currentFood.macros.calories} kcal</span></span>
+                    <span>Calories : <span className="font-extrabold text-slate-900">≈ {currentFood.macros.calories} kcal</span></span>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <Salad className="w-3.5 h-3.5 text-[#599b38]" />
-                    <span>Protein : <span className="font-extrabold text-slate-900">{currentFood.macros.protein} g</span></span>
+                    <span>Protein : <span className="font-extrabold text-slate-900">≈ {currentFood.macros.protein} g</span></span>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <svg className="w-3.5 h-3.5 text-[#599b38]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
                       <path d="M12 3v18M12 3a9 9 0 019 9M12 3a9 9 0 00-9 9m18 0a9 9 0 01-9 9m9-9H3m15 0a6 6 0 10-12 0" />
                     </svg>
-                    <span>Carbs : <span className="font-extrabold text-slate-900">{currentFood.macros.carbohydrates} g</span></span>
+                    <span>Carbs : <span className="font-extrabold text-slate-900">≈ {currentFood.macros.carbohydrates} g</span></span>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <Droplet className="w-3.5 h-3.5 text-[#599b38] fill-current" />
-                    <span>Fat : <span className="font-extrabold text-slate-900">{currentFood.macros.fat} g</span></span>
+                    <span>Fat : <span className="font-extrabold text-slate-900">≈ {currentFood.macros.fat} g</span></span>
                   </div>
                 </div>
+              </div>
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-semibold leading-relaxed text-amber-800">
+                Nutrition values are catalog estimates for {currentFood.servingSize}. They are not a measurement of the photographed portion.
               </div>
 
               {/* Interactive Nutrition Pie Chart Panel */}
               <div className="bg-white p-4.5 border border-[#e2edd8] rounded-[24px] shadow-[0_4px_16px_rgba(89,155,56,0.03)] flex flex-col items-center">
                 <span className="text-[10px] font-bold text-[#558e38] bg-[#f4f8f1] px-3 py-1 rounded-full uppercase tracking-wider mb-2 flex items-center gap-1">
-                  <ChartIcon className="w-3.5 h-3.5 text-[#558e38]" /> Macronutrient Distribution
+                  <ChartIcon className="w-3.5 h-3.5 text-[#558e38]" /> Estimated Macronutrients / 100 g
                 </span>
 
                 {/* Pie Chart display containing labels drawn on the side of each wedge portion */}
@@ -300,7 +337,7 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
                 {/* Dynamic highlighted interactive legend list displaying exact amounts on side */}
                 <div className="w-full flex flex-col gap-2 mt-2 px-1">
                   <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-widest block text-center mb-1">
-                    Touch any color portion above to inspect:
+                    Approximate values per 100 g:
                   </span>
                   <div className="grid grid-cols-3 gap-1.5">
                     {pieData.map((x, i) => {

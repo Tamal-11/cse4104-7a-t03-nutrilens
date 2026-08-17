@@ -5,12 +5,13 @@ for (const path of [
   'frontend/node_modules',
   'backend/node_modules',
   'ai-node/node_modules',
-  'package-lock.json',
-  'frontend/package-lock.json',
-  'backend/package-lock.json',
-  'ai-node/package-lock.json',
+  'frontend/dist',
+  'backend/dist',
+  'ai-node/dist',
 ]) {
   rmSync(path, { recursive: true, force: true });
 }
 
-console.log('Removed installed dependencies and npm lock files. Run pnpm run setup before starting.');
+console.log('Removed installed dependencies and build output.');
+console.log('pnpm-lock.yaml was kept so installs remain reproducible.');
+console.log('Run: pnpm run setup');

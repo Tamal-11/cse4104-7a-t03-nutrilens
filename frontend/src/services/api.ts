@@ -46,6 +46,7 @@ type AnalysisResponse = {
     carbohydrates: number;
     fats: number;
     fiber: number;
+    servingSize?: string;
   };
   healthBenefits?: string[];
   warnings?: string[];
@@ -145,6 +146,7 @@ export function mapAnalysis(item: AnalysisResponse): FoodAnalysis {
       fat: nutrition.fats,
       fiber: nutrition.fiber,
     },
+    servingSize: nutrition.servingSize || '100 g estimated edible portion',
     pros: item.healthBenefits || [],
     cons: item.warnings || [],
     warnings: item.warnings || [],

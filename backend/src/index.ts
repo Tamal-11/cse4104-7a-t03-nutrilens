@@ -903,6 +903,7 @@ type ModelPrediction = {
     carbohydrates: number;
     fats: number;
     fiber: number;
+    servingSize?: string;
   };
   healthBenefits?: string[];
   warnings?: string[];
@@ -979,25 +980,25 @@ async function enforceAuthRateLimit(c: { env: Env["Bindings"]; req: { raw: Reque
   const route = c.req.raw ? new URL(c.req.raw.url).pathname : "auth";
   const ip = c.req.raw.headers.get("CF-Connecting-IP") ?? "unknown";
   const ipResult = await c.env.AUTH_RATE_LIMIT.limit({ key: `auth:ip:${ip}:${route}` });
-  if (!ipResult.success) return tooManyRequests(c.get("requestId"));
+  if (!ipResult.success) return tooManyRequests(c.get("requestId"), 10);
 
   if (c.req.raw.method !== "POST") return null;
   const body = await c.req.raw.clone().json<{ email?: unknown }>().catch(() => null);
   if (typeof body?.email !== "string" || !body.email.trim()) return null;
   const accountKey = await hashRateLimitKey(body.email.trim().toLowerCase());
   const accountResult = await c.env.AUTH_RATE_LIMIT.limit({ key: `auth:account:${accountKey}:${route}` });
-  return accountResult.success ? null : tooManyRequests(c.get("requestId"));
+  return accountResult.success ? null : tooManyRequests(c.get("requestId"), 10);
 }
 
 async function enforceApiRateLimit(c: { env: Env["Bindings"]; get: (key: "requestId") => string }, userId: string) {
   const result = await c.env.API_RATE_LIMIT.limit({ key: `api:user:${userId}` });
-  return result.success ? null : tooManyRequests(c.get("requestId"));
+  return result.success ? null : tooManyRequests(c.get("requestId"), 30);
 }
 
-function tooManyRequests(requestId: string) {
+function tooManyRequests(requestId: string, limit: number) {
   return new Response(JSON.stringify({ success: false, message: "Too many requests. Try again later.", requestId }), {
     status: 429,
-    headers: { "Content-Type": "application/json", "Retry-After": "60", "RateLimit-Limit": "10", "RateLimit-Remaining": "0", "RateLimit-Reset": "60" },
+    headers: { "Content-Type": "application/json", "Retry-After": "60", "RateLimit-Limit": String(limit), "RateLimit-Remaining": "0", "RateLimit-Reset": "60" },
   });
 }
 

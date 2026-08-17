@@ -10,7 +10,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "model:download": "node scripts/download-model.mjs",
-    "model:check": "node scripts/check-model.mjs"
+    "model:check": "node scripts/check-model.mjs",
+    "inference:check": "pnpm run build && node scripts/check-inference.mjs"
   },
   "dependencies": {
     "@hono/node-server": "2.1.0",
