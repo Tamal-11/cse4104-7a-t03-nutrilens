@@ -37,7 +37,11 @@ export default function App() {
         await loadAccountData();
         setCurrentScreen('ai');
       })
-      .catch(() => undefined);
+      .catch((error) => {
+        console.error('Session restore failed:', error);
+        setCurrentUser(EMPTY_USER);
+        setCurrentScreen('home');
+      });
   }, []);
 
   // Status handler triggers
@@ -64,6 +68,8 @@ export default function App() {
   const handleSignOut = async () => {
     await api.signOut().catch(() => undefined);
     setHistoryList([]);
+    setSelectedScanItem(null);
+    setCurrentUser(EMPTY_USER);
     setCurrentScreen('home');
   };
 

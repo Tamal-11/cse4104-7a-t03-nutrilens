@@ -102,7 +102,13 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({imageId: upload.data.imageId}),
     });
-    return mapAnalysis({...result.data, imageUrl: upload.data.imageUrl || URL.createObjectURL(file)});
+    const imageUrl = upload.data.imageUrl || URL.createObjectURL(file);
+    const analysis = mapAnalysis({...result.data, imageUrl});
+    // Release browser object URLs created for previews after the mapping is complete.
+    if (!upload.data.imageUrl) {
+      setTimeout(() => URL.revokeObjectURL(imageUrl), 60000);
+    }
+    return analysis;
   },
   adminOverview: () => request<ApiEnvelope<{
     currentUserId: string;
