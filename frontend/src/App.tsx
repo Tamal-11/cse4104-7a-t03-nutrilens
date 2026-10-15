@@ -14,22 +14,34 @@ import AdminScreen from './components/AdminScreen';
 // Types & Data Defaults
 import { ScreenType, UserProfile, FoodAnalysis } from './types';
 import { EMPTY_USER } from './data';
-import { MOCK_USER, createMockHistory } from './data/mockData';
 import {api, mapAnalysis, mapProfile} from './services/api';
 import {usePwaInstall} from './hooks/usePwaInstall';
+
+const SCREEN_PATHS: Record<ScreenType, string> = {
+  home: '/', login: '/login', register: '/register', dashboard: '/dashboard',
+  ai: '/ai-lens', profile: '/profile', admin: '/admin',
+};
+const PATH_SCREENS = Object.fromEntries(Object.entries(SCREEN_PATHS).map(([screen, path]) => [path, screen])) as Record<string, ScreenType>;
+const isProtectedScreen = (screen: ScreenType) => !['home', 'login', 'register'].includes(screen);
+const screenFromPath = (path: string) => PATH_SCREENS[path] || 'home';
 
 const isProfileComplete = (user: UserProfile) =>
   Boolean(user.name.trim()) && user.age >= 13 && user.age <= 120 &&
   user.height >= 50 && user.height <= 260 && user.weight >= 20 && user.weight <= 500;
 
 export default function App() {
-  const useMockData = import.meta.env.VITE_USE_MOCK_DATA === 'true';
-  const [currentScreen, setCurrentScreen] = useState<ScreenType>(useMockData ? 'dashboard' : 'home');
-  const [currentUser, setCurrentUser] = useState<UserProfile>(useMockData ? MOCK_USER : EMPTY_USER);
-  const [historyList, setHistoryList] = useState<FoodAnalysis[]>(() => useMockData ? createMockHistory() : []);
+  const [currentScreen, setCurrentScreen] = useState<ScreenType>(() => {
+    const requested = screenFromPath(window.location.pathname);
+    return isProtectedScreen(requested) ? 'home' : requested;
+  });
+  const [currentUser, setCurrentUser] = useState<UserProfile>(EMPTY_USER);
+  const [historyList, setHistoryList] = useState<FoodAnalysis[]>([]);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [selectedScanItem, setSelectedScanItem] = useState<FoodAnalysis | null>(null);
   const selectedScanItemRef = useRef<FoodAnalysis | null>(null);
-  const profileCompleteRef = useRef(useMockData || isProfileComplete(currentUser));
+  const authenticatedRef = useRef(false);
+  const isAdminRef = useRef(false);
+  const profileCompleteRef = useRef(false);
   const [profileGateNotice, setProfileGateNotice] = useState('');
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const {canInstall, installed, install} = usePwaInstall();
@@ -44,50 +56,98 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (useMockData) return;
-    if (window.location.pathname === '/admin') setCurrentScreen('admin');
     api.session()
-      .then(async () => {
+      .then(async ({user: authUser}) => {
         const loadedUser = await loadAccountData();
-        const isAdminRoute = window.location.pathname === '/admin';
-        if (!isAdminRoute && !isProfileComplete(loadedUser)) {
+        const signedInUser = {...loadedUser, isAdmin: loadedUser.isAdmin || authUser.role?.toLowerCase() === 'admin'};
+        authenticatedRef.current = true;
+        isAdminRef.current = Boolean(signedInUser.isAdmin);
+        setIsAuthenticated(true);
+        setCurrentUser(signedInUser);
+        const requested = screenFromPath(window.location.pathname);
+        if (requested === 'admin' && !signedInUser.isAdmin) {
+          window.history.replaceState({}, '', SCREEN_PATHS.dashboard);
+          setCurrentScreen('dashboard');
+          return;
+        }
+        const destination = isProtectedScreen(requested)
+          ? requested
+          : isProfileComplete(signedInUser) ? 'dashboard' : 'profile';
+        if (destination !== 'admin' && !isProfileComplete(signedInUser)) {
           setProfileGateNotice('Complete your display name, age, height, and weight before scanning food.');
         }
-        setCurrentScreen(isAdminRoute ? 'admin' : isProfileComplete(loadedUser) ? 'ai' : 'profile');
+        window.history.replaceState({}, '', SCREEN_PATHS[destination]);
+        setCurrentScreen(destination);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        const requested = screenFromPath(window.location.pathname);
+        const destination = isProtectedScreen(requested) ? 'login' : requested;
+        window.history.replaceState({}, '', SCREEN_PATHS[destination]);
+        setCurrentScreen(destination);
+      });
+
+    const handlePopState = () => {
+      const requested = screenFromPath(window.location.pathname);
+      if (isProtectedScreen(requested) && !authenticatedRef.current) {
+        window.history.replaceState({}, '', SCREEN_PATHS.login);
+        setCurrentScreen('login');
+        return;
+      }
+      if (requested === 'admin' && !isAdminRef.current) {
+        window.history.replaceState({}, '', SCREEN_PATHS.dashboard);
+        setCurrentScreen(authenticatedRef.current ? 'dashboard' : 'login');
+        return;
+      }
+      setCurrentScreen(requested);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const handleNavigate = (screen: ScreenType) => {
+    if (isProtectedScreen(screen) && !authenticatedRef.current) {
+      window.history.pushState({}, '', SCREEN_PATHS.login);
+      setCurrentScreen('login');
+      return;
+    }
+    if (screen === 'admin' && !isAdminRef.current) {
+      window.history.pushState({}, '', SCREEN_PATHS.dashboard);
+      setCurrentScreen('dashboard');
+      return;
+    }
     if (screen === 'ai' && !selectedScanItemRef.current && !profileCompleteRef.current) {
       setProfileGateNotice('Complete your display name, age, height, and weight before scanning food.');
+      window.history.pushState({}, '', SCREEN_PATHS.profile);
       setCurrentScreen('profile');
       return;
     }
     if (screen === 'profile' && isProfileComplete(currentUser)) setProfileGateNotice('');
-    if (screen === 'admin') window.history.pushState({}, '', '/admin');
-    else if (window.location.pathname === '/admin') window.history.pushState({}, '', '/');
+    window.history.pushState({}, '', SCREEN_PATHS[screen]);
     setCurrentScreen(screen);
   };
 
   // Status handler triggers
-  const handleLoginSuccess = async (userObj: UserProfile) => {
-    profileCompleteRef.current = isProfileComplete(userObj);
-    setCurrentUser(userObj);
+  const handleLoginSuccess = async () => {
     const loadedUser = await loadAccountData();
+    authenticatedRef.current = true;
+    isAdminRef.current = Boolean(loadedUser.isAdmin);
+    setIsAuthenticated(true);
     if (!isProfileComplete(loadedUser)) {
       setProfileGateNotice('Complete your display name, age, height, and weight before scanning food.');
+      window.history.replaceState({}, '', SCREEN_PATHS.profile);
       setCurrentScreen('profile');
     }
     setShowInstallPrompt(true);
   };
 
-  const handleRegisterSuccess = async (userObj: UserProfile) => {
-    profileCompleteRef.current = isProfileComplete(userObj);
-    setCurrentUser(userObj);
+  const handleRegisterSuccess = async () => {
     const loadedUser = await loadAccountData();
+    authenticatedRef.current = true;
+    isAdminRef.current = Boolean(loadedUser.isAdmin);
+    setIsAuthenticated(true);
     if (!isProfileComplete(loadedUser)) {
       setProfileGateNotice('Complete your display name, age, height, and weight before scanning food.');
+      window.history.replaceState({}, '', SCREEN_PATHS.profile);
       setCurrentScreen('profile');
     }
     setShowInstallPrompt(true);
@@ -104,14 +164,14 @@ export default function App() {
   };
 
   const handleSignOut = async () => {
-    if (useMockData) {
-      setCurrentUser(MOCK_USER);
-      setHistoryList(createMockHistory());
-      setCurrentScreen('dashboard');
-      return;
-    }
     await api.signOut().catch(() => undefined);
+    authenticatedRef.current = false;
+    isAdminRef.current = false;
+    profileCompleteRef.current = false;
+    setIsAuthenticated(false);
+    setCurrentUser(EMPTY_USER);
     setHistoryList([]);
+    window.history.replaceState({}, '', SCREEN_PATHS.home);
     setCurrentScreen('home');
   };
 
@@ -152,7 +212,7 @@ export default function App() {
               {currentScreen === 'register' && (
                 <RegisterScreen onNavigate={handleNavigate} onRegisterSuccess={handleRegisterSuccess} />
               )}
-              {currentScreen === 'dashboard' && (
+              {isAuthenticated && currentScreen === 'dashboard' && (
                 <DashboardScreen 
                   user={currentUser} 
                   history={historyList} 
@@ -160,14 +220,14 @@ export default function App() {
                   onSelectScan={handleSelectHistoryItem}
                 />
               )}
-              {currentScreen === 'ai' && (
+              {isAuthenticated && currentScreen === 'ai' && (
                 <AIInterfaceScreen 
                   onNavigate={handleNavigate}
                   onAddHistory={handleAddHistoryScan}
                   selectedScan={selectedScanItem}
                 />
               )}
-              {currentScreen === 'profile' && (
+              {isAuthenticated && currentScreen === 'profile' && (
                 <ProfileScreen 
                   user={currentUser} 
                   onUpdateUser={handleUpdateUserProfile} 
@@ -179,7 +239,7 @@ export default function App() {
                   scanGateNotice={profileGateNotice}
                 />
               )}
-              {currentScreen === 'admin' && (
+              {isAuthenticated && currentUser.isAdmin && currentScreen === 'admin' && (
                 <AdminScreen onNavigate={handleNavigate} />
               )}
             </motion.div>
@@ -187,11 +247,11 @@ export default function App() {
         </div>
 
         {/* Bottom device navigation rail - bounded internally for PC */}
-        {currentScreen !== 'home' && currentScreen !== 'login' && currentScreen !== 'register' && currentScreen !== 'admin' && (
+        {isAuthenticated && currentScreen !== 'home' && currentScreen !== 'login' && currentScreen !== 'register' && currentScreen !== 'admin' && (
           <nav className="w-full bg-white border-t border-slate-100 px-6 shrink-0 z-50 shadow-[0_-4px_16px_rgba(0,0,0,0.03)] text-slate-850 h-16 flex items-center justify-center">
             <div className="max-w-md w-full grid grid-cols-3 items-center h-full">
               <button
-                onClick={() => setCurrentScreen('dashboard')}
+                onClick={() => handleNavigate('dashboard')}
                 aria-label="Dashboard"
                 className={`justify-self-center flex items-center justify-center cursor-pointer transition ${
                   currentScreen === 'dashboard' ? 'text-[#599b38] font-black' : 'text-slate-400 hover:text-slate-600'
@@ -215,7 +275,7 @@ export default function App() {
               </button>
 
               <button
-                onClick={() => setCurrentScreen('profile')}
+                onClick={() => handleNavigate('profile')}
                 aria-label="Profile"
                 className={`justify-self-center flex items-center justify-center cursor-pointer transition ${
                   currentScreen === 'profile' ? 'text-[#599b38] font-black' : 'text-slate-400 hover:text-slate-600'
