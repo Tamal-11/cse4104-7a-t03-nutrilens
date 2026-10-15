@@ -103,6 +103,7 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
       weight: Number(weight),
       dietaryPreferences: selectedDiets,
       healthConditions: selectedConditions,
+      isAdmin: user.isAdmin,
     };
 
     try {

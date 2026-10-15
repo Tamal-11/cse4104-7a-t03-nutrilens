@@ -16,6 +16,10 @@ local_protocol = "http"
 binding = "FOOD_IMAGES"
 bucket_name = "food-images"
 
+[[kv_namespaces]]
+binding = "GEMINI_SETTINGS_KV"
+id = "f508509928ad483d8e1de4813c7d4699"
+
 [[ratelimits]]
 name = "AUTH_RATE_LIMIT"
 namespace_id = "410401"

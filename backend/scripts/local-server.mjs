@@ -27,12 +27,13 @@ try {
 } catch {}
 
 const app = new Hono();
+let demoSessionActive = false;
 
 const demoUser = {
   id: 'demo-user-001',
   email: process.env.LOCAL_DEMO_EMAIL || 'demo@nutrilens.local',
   name: process.env.LOCAL_DEMO_NAME || 'NutriLens Demo User',
-  role: (process.env.LOCAL_DEMO_ROLE || 'admin').trim().toLowerCase(),
+  role: (process.env.LOCAL_DEMO_ROLE || 'user').trim().toLowerCase(),
 };
 
 const profile = {
@@ -150,13 +151,18 @@ app.post('/api/auth/sign-up', async (c) => authResponse(c, await readJsonSafe(c)
 app.post('/api/auth/sign-up/email', async (c) => authResponse(c, await readJsonSafe(c)));
 app.post('/api/auth/sign-in', async (c) => authResponse(c, await readJsonSafe(c)));
 app.post('/api/auth/sign-in/email', async (c) => authResponse(c, await readJsonSafe(c)));
-app.get('/api/auth/session', (c) => authResponse(c));
+app.get('/api/auth/session', (c) => {
+  if (!hasDemoSession(c)) return c.json({ success: false, message: 'Authentication required.' }, 401);
+  return authResponse(c);
+});
 app.post('/api/auth/sign-out', (c) => {
+  demoSessionActive = false;
   c.header('Set-Cookie', 'nutrilens_demo_session=; Path=/; Max-Age=0; SameSite=Lax');
   return c.json({ success: true, message: 'Signed out from local demo session.' });
 });
 
 app.use('/api/v1/*', async (c, next) => {
+  if (!hasDemoSession(c)) return c.json({ success: false, message: 'Authentication required.' }, 401);
   c.set('user', demoUser);
   await next();
 });
@@ -436,6 +442,7 @@ app.put('/api/v1/admin/users/:userId/status', async (c) => {
 });
 
 function authResponse(c, body = {}) {
+  demoSessionActive = true;
   if (body.email) {
     demoUser.email = body.email;
     demoUser.name = body.name || body.email.split('@')[0] || demoUser.name;
@@ -450,6 +457,10 @@ function authResponse(c, body = {}) {
   }
   c.header('Set-Cookie', 'nutrilens_demo_session=demo; Path=/; HttpOnly; SameSite=Lax');
   return c.json({ user: demoUser });
+}
+
+function hasDemoSession(c) {
+  return demoSessionActive && (c.req.header('Cookie') || '').split(';').some((cookie) => cookie.trim() === 'nutrilens_demo_session=demo');
 }
 
 async function requestPrediction(image) {
