@@ -159,7 +159,13 @@ const authRoutes: Record<string, string> = {
 };
 
 app.all("/api/auth/*", async (c) => {
-  const rateLimitResponse = await enforceAuthRateLimit(c);
+  // Session checks and sign-outs are read/cleanup operations that browsers call
+  // during normal navigation. Throttle only credential-changing auth attempts.
+  const rateLimitResponse =
+    c.req.method === "POST" &&
+    ["/api/auth/sign-up", "/api/auth/sign-in"].includes(c.req.path)
+      ? await enforceAuthRateLimit(c)
+      : null;
   if (rateLimitResponse) return rateLimitResponse;
   if (!c.env.NEON_AUTH_URL) {
     return c.json(
