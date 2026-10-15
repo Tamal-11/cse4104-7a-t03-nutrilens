@@ -32,13 +32,20 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (window.location.pathname === '/admin') setCurrentScreen('admin');
     api.session()
       .then(async () => {
         await loadAccountData();
-        setCurrentScreen('ai');
+        setCurrentScreen(window.location.pathname === '/admin' ? 'admin' : 'ai');
       })
       .catch(() => undefined);
   }, []);
+
+  const handleNavigate = (screen: ScreenType) => {
+    if (screen === 'admin') window.history.pushState({}, '', '/admin');
+    else if (window.location.pathname === '/admin') window.history.pushState({}, '', '/');
+    setCurrentScreen(screen);
+  };
 
   // Status handler triggers
   const handleLoginSuccess = async (userObj: UserProfile) => {
@@ -94,25 +101,25 @@ export default function App() {
               className="w-full h-full"
             >
               {currentScreen === 'home' && (
-                <HomeScreen onNavigate={setCurrentScreen} />
+                <HomeScreen onNavigate={handleNavigate} />
               )}
               {currentScreen === 'login' && (
-                <LoginScreen onNavigate={setCurrentScreen} onLoginSuccess={handleLoginSuccess} />
+                <LoginScreen onNavigate={handleNavigate} onLoginSuccess={handleLoginSuccess} />
               )}
               {currentScreen === 'register' && (
-                <RegisterScreen onNavigate={setCurrentScreen} onRegisterSuccess={handleRegisterSuccess} />
+                <RegisterScreen onNavigate={handleNavigate} onRegisterSuccess={handleRegisterSuccess} />
               )}
               {currentScreen === 'dashboard' && (
                 <DashboardScreen 
                   user={currentUser} 
                   history={historyList} 
-                  onNavigate={setCurrentScreen} 
+                  onNavigate={handleNavigate}
                   onSelectScan={handleSelectHistoryItem}
                 />
               )}
               {currentScreen === 'ai' && (
                 <AIInterfaceScreen 
-                  onNavigate={setCurrentScreen} 
+                  onNavigate={handleNavigate}
                   onAddHistory={handleAddHistoryScan}
                   selectedScan={selectedScanItem}
                 />
@@ -121,7 +128,7 @@ export default function App() {
                 <ProfileScreen 
                   user={currentUser} 
                   onUpdateUser={handleUpdateUserProfile} 
-                  onNavigate={setCurrentScreen} 
+                  onNavigate={handleNavigate}
                   onSignOut={handleSignOut}
                   canInstall={canInstall}
                   installed={installed}
@@ -129,14 +136,14 @@ export default function App() {
                 />
               )}
               {currentScreen === 'admin' && (
-                <AdminScreen onNavigate={setCurrentScreen} />
+                <AdminScreen onNavigate={handleNavigate} />
               )}
             </motion.div>
           </AnimatePresence>
         </div>
 
         {/* Bottom device navigation rail - bounded internally for PC */}
-        {currentScreen !== 'home' && currentScreen !== 'login' && currentScreen !== 'register' && (
+        {currentScreen !== 'home' && currentScreen !== 'login' && currentScreen !== 'register' && currentScreen !== 'admin' && (
           <nav className="w-full bg-white border-t border-slate-100 px-6 shrink-0 z-50 shadow-[0_-4px_16px_rgba(0,0,0,0.03)] text-slate-850 h-16 flex items-center justify-center">
             <div className="max-w-md w-full grid grid-cols-3 items-center h-full">
               <button

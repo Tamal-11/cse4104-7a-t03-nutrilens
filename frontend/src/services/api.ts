@@ -27,7 +27,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return payload as T;
 }
 
-export type AuthUser = {id: string; email: string; name?: string};
+export type AuthUser = {id: string; email: string; name?: string; role?: string};
 export type ProfileResponse = {
   userId: string;
   email: string;
@@ -114,6 +114,14 @@ export const api = {
     request<ApiEnvelope<import('../types').UserAccount>>(`/api/v1/admin/users/${id}/status`, {
       method: 'PUT',
       body: JSON.stringify({status}),
+    }),
+  adminUploads: () => request<ApiEnvelope<import('../components/AdminScreen').AdminUpload[]>>('/api/v1/admin/uploads'),
+  adminImageUrl: (id: string) => `${API_BASE_URL}/api/v1/admin/uploads/${id}/image`,
+  adminAiSettings: () => request<ApiEnvelope<{configured: boolean; keyCount: number; model: string}>>('/api/v1/admin/ai-settings'),
+  updateAdminAiSettings: (apiKeys: string[], model: string) =>
+    request<ApiEnvelope<{configured: boolean; keyCount: number; model: string}>>('/api/v1/admin/ai-settings', {
+      method: 'PUT',
+      body: JSON.stringify({apiKeys, model}),
     }),
 };
 
