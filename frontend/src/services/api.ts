@@ -1,8 +1,6 @@
 import type {FoodAnalysis, UserProfile} from '../types';
-import {createMockHistory} from '../data/mockData';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
-const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 const apiUrl = (value?: string | null) =>
   value?.startsWith('/') ? `${API_BASE_URL}${value}` : value || '';
 
@@ -95,15 +93,6 @@ export const api = {
   analysis: (id: string) =>
     request<ApiEnvelope<AnalysisResponse>>(`/api/v1/analysis-history/${id}`),
   async analyzeImage(file: File): Promise<FoodAnalysis> {
-    if (USE_MOCK_DATA) {
-      const sample = createMockHistory()[0];
-      return {
-        ...sample,
-        id: `mock-upload-${Date.now()}`,
-        image: URL.createObjectURL(file),
-        time: new Date().toISOString(),
-      };
-    }
     const form = new FormData();
     form.append('image', file);
     const upload = await request<ApiEnvelope<{imageId: string; imageUrl: string | null}>>(
