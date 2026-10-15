@@ -190,7 +190,10 @@ app.all("/api/auth/*", async (c) => {
 
   headers.delete("set-cookie");
   for (const cookie of cookies) {
-    headers.append("set-cookie", cookie.replace(/;\s*Domain=[^;]+/gi, ""));
+    headers.append(
+      "set-cookie",
+      normalizeAuthCookie(cookie, new URL(c.req.url).protocol === "https:"),
+    );
   }
 
   const location = headers.get("location");
@@ -219,6 +222,25 @@ function getSetCookies(headers: Headers): string[] {
     cookieHeaders.getAll?.("Set-Cookie") ??
     (headers.get("Set-Cookie") ? [headers.get("Set-Cookie")!] : [])
   );
+}
+
+function normalizeAuthCookie(cookie: string, crossSite: boolean) {
+  const attributes = cookie
+    .split(";")
+    .map((attribute) => attribute.trim())
+    .filter((attribute) => attribute && !/^domain=/i.test(attribute));
+
+  if (crossSite) {
+    const sameSiteIndex = attributes.findIndex((attribute) => /^samesite=/i.test(attribute));
+    if (sameSiteIndex >= 0) attributes[sameSiteIndex] = "SameSite=None";
+    else attributes.push("SameSite=None");
+
+    if (!attributes.some((attribute) => /^secure$/i.test(attribute))) {
+      attributes.push("Secure");
+    }
+  }
+
+  return attributes.join("; ");
 }
 
 app.use("/api/v1/*", async (c, next) => {
