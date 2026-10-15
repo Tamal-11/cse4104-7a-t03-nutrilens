@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { Check, ChevronLeft, Loader2, User, Save, Calendar, Shield, Sparkles, LogOut, Download, Share, MoreVertical } from 'lucide-react';
 import { ScreenType, UserProfile } from '../types';
@@ -13,6 +13,7 @@ interface ProfileScreenProps {
   canInstall: boolean;
   installed: boolean;
   onInstall: () => Promise<boolean>;
+  scanGateNotice?: string;
 }
 
 const AVAILABLE_DIETS = [
@@ -33,17 +34,17 @@ const AVAILABLE_CONDITIONS = [
   'Milk Allergy',
 ];
 
-export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOut, canInstall, installed, onInstall }: ProfileScreenProps) {
+export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOut, canInstall, installed, onInstall, scanGateNotice }: ProfileScreenProps) {
   const isIOS =
     /iPad|iPhone|iPod/.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const isAndroid = /Android/.test(navigator.userAgent);
   const [name, setName] = useState(user.name);
   const [email] = useState(user.email);
-  const [age, setAge] = useState(user.age);
+  const [age, setAge] = useState(String(user.age || ''));
   const [gender, setGender] = useState(user.gender);
-  const [height, setHeight] = useState(user.height);
-  const [weight, setWeight] = useState(user.weight);
+  const [height, setHeight] = useState(String(user.height || ''));
+  const [weight, setWeight] = useState(String(user.weight || ''));
   
   const [selectedDiets, setSelectedDiets] = useState<string[]>(user.dietaryPreferences);
   const [selectedConditions, setSelectedConditions] = useState<string[]>(user.healthConditions);
@@ -51,11 +52,47 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
   const [isSaving, setIsSaving] = useState(false);
   const [showInstallHelp, setShowInstallHelp] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const formRef = useRef<HTMLFormElement>(null);
+
+  const validateField = (field: string, value: string) => {
+    const trimmed = value.trim();
+    if (field === 'name') return trimmed ? '' : 'Enter your display name.';
+    if (!trimmed) return `Enter your ${field === 'age' ? 'age' : field}.`;
+    const number = Number(trimmed);
+    if (!Number.isFinite(number)) return `Enter a valid ${field}.`;
+    const ranges: Record<string, [number, number]> = { age: [13, 120], height: [50, 260], weight: [20, 500] };
+    const [min, max] = ranges[field];
+    return number < min || number > max ? `Enter a value from ${min} to ${max} ${field === 'height' ? 'cm' : field === 'weight' ? 'kg' : 'years'}.` : '';
+  };
+
+  const handleFieldBlur = (field: string, value: string) => {
+    setFieldErrors((current) => ({ ...current, [field]: validateField(field, value) }));
+  };
+
+  const handleFieldChange = (field: string, value: string, update: (value: string) => void) => {
+    update(value);
+    if (fieldErrors[field]) setFieldErrors((current) => ({ ...current, [field]: validateField(field, value) }));
+    setError('');
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSaving) return;
     setError('');
+    const nextErrors = {
+      name: validateField('name', name),
+      age: validateField('age', age),
+      height: validateField('height', height),
+      weight: validateField('weight', weight),
+    };
+    setFieldErrors(nextErrors);
+    const firstInvalidField = Object.entries(nextErrors).find(([, message]) => message)?.[0];
+    if (firstInvalidField) {
+      formRef.current?.querySelector<HTMLElement>(`#profile-${firstInvalidField}-input`)?.focus();
+      setError('Please fix the highlighted fields and try again.');
+      return;
+    }
     setIsSaving(true);
     const updated = {
       name,
@@ -147,7 +184,9 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
         </div>
 
         {/* Core fields */}
-        <form onSubmit={handleSave} className="space-y-4">
+        <form ref={formRef} onSubmit={handleSave} className="space-y-4" noValidate>
+          {scanGateNotice && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold leading-relaxed text-amber-800">{scanGateNotice}</p>}
+          {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">{error}</p>}
           
           {/* Account metrics card */}
           <div className="bg-white rounded-[24px] border border-[#e2edd8] p-4.5 space-y-3">
@@ -156,18 +195,23 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
             </span>
             
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Display Name</label>
+              <label htmlFor="profile-name-input" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Display Name <span className="text-rose-600">*</span></label>
               <input
                 id="profile-name-input"
                 type="text"
                 value={name}
-                onChange={e => setName(e.target.value)}
+                autoComplete="name"
+                onChange={e => handleFieldChange('name', e.target.value, setName)}
+                onBlur={e => handleFieldBlur('name', e.target.value)}
+                aria-invalid={Boolean(fieldErrors.name)}
+                aria-describedby={fieldErrors.name ? 'profile-name-error' : undefined}
                 className="w-full px-3 py-2.5 bg-[#fafff6] border border-[#e3edd9] rounded-xl text-xs text-slate-800 font-bold focus:ring-1 focus:ring-[#519031] focus:border-[#519031] outline-none"
               />
+              <p id="profile-name-error" className="min-h-4 pt-1 text-[11px] text-rose-700">{fieldErrors.name}</p>
             </div>
 
             <div>
-              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Email</label>
+              <label htmlFor="profile-email-input" className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Email</label>
               <input
                 id="profile-email-input"
                 type="email"
@@ -186,18 +230,29 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">Age</label>
+                <label htmlFor="profile-age-input" className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">Age <span className="text-rose-600">*</span></label>
                 <input
+                  id="profile-age-input"
                   type="number"
+                  min="13"
+                  max="120"
+                  step="1"
+                  inputMode="numeric"
+                  autoComplete="off"
                   value={age}
-                  onChange={e => setAge(Number(e.target.value))}
+                  onChange={e => handleFieldChange('age', e.target.value, setAge)}
+                  onBlur={e => handleFieldBlur('age', e.target.value)}
+                  aria-invalid={Boolean(fieldErrors.age)}
+                  aria-describedby={fieldErrors.age ? 'profile-age-error' : undefined}
                   className="w-full px-3 py-2.5 bg-[#fafff6] border border-[#e3edd9] rounded-xl text-xs text-slate-850 font-bold focus:ring-1 focus:ring-[#519031] focus:border-[#519031] outline-none"
                 />
+                <p id="profile-age-error" className="min-h-4 pt-1 text-[11px] text-rose-700">{fieldErrors.age}</p>
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">Gender</label>
+                <label htmlFor="profile-gender-input" className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">Gender</label>
                 <select
+                  id="profile-gender-input"
                   value={gender}
                   onChange={e => setGender(e.target.value as 'Male' | 'Female' | 'Other')}
                   className="w-full px-3 py-2.5 bg-[#fafff6] border border-[#e3edd9] rounded-xl text-xs text-slate-850 font-bold focus:ring-1 focus:ring-[#519031] focus:border-[#519031] outline-none"
@@ -209,23 +264,41 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">Height (cm)</label>
+                <label htmlFor="profile-height-input" className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">Height (cm) <span className="text-rose-600">*</span></label>
                 <input
+                  id="profile-height-input"
                   type="number"
+                  min="50"
+                  max="260"
+                  step="0.1"
+                  inputMode="decimal"
                   value={height}
-                  onChange={e => setHeight(Number(e.target.value))}
+                  onChange={e => handleFieldChange('height', e.target.value, setHeight)}
+                  onBlur={e => handleFieldBlur('height', e.target.value)}
+                  aria-invalid={Boolean(fieldErrors.height)}
+                  aria-describedby={fieldErrors.height ? 'profile-height-error' : undefined}
                   className="w-full px-3 py-2.5 bg-[#fafff6] border border-[#e3edd9] rounded-xl text-xs text-slate-850 font-bold focus:ring-1 focus:ring-[#519031] focus:border-[#519031] outline-none"
                 />
+                <p id="profile-height-error" className="min-h-4 pt-1 text-[11px] text-rose-700">{fieldErrors.height}</p>
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">Weight (kg)</label>
+                <label htmlFor="profile-weight-input" className="block text-[10px] font-bold text-slate-400 uppercase mb-0.5">Weight (kg) <span className="text-rose-600">*</span></label>
                 <input
+                  id="profile-weight-input"
                   type="number"
+                  min="20"
+                  max="500"
+                  step="0.1"
+                  inputMode="decimal"
                   value={weight}
-                  onChange={e => setWeight(Number(e.target.value))}
+                  onChange={e => handleFieldChange('weight', e.target.value, setWeight)}
+                  onBlur={e => handleFieldBlur('weight', e.target.value)}
+                  aria-invalid={Boolean(fieldErrors.weight)}
+                  aria-describedby={fieldErrors.weight ? 'profile-weight-error' : undefined}
                   className="w-full px-3 py-2.5 bg-[#fafff6] border border-[#e3edd9] rounded-xl text-xs text-slate-850 font-bold focus:ring-1 focus:ring-[#519031] focus:border-[#519031] outline-none"
                 />
+                <p id="profile-weight-error" className="min-h-4 pt-1 text-[11px] text-rose-700">{fieldErrors.weight}</p>
               </div>
             </div>
           </div>
@@ -242,6 +315,7 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
                   <button
                     key={diet}
                     type="button"
+                    aria-pressed={isSel}
                     onClick={() => toggleDiet(diet)}
                     className={`px-3 py-1.5 rounded-xl text-[10px] font-extrabold border transition cursor-pointer ${
                       isSel 
@@ -268,6 +342,7 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
                   <button
                     key={cond}
                     type="button"
+                    aria-pressed={isSel}
                     onClick={() => toggleCondition(cond)}
                     className={`px-3 py-1.5 rounded-xl text-[10px] font-extrabold border transition cursor-pointer ${
                       isSel 
@@ -306,14 +381,13 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
             </button>
           </div>
 
-          {error && <p className="rounded-xl bg-rose-50 p-3 text-center text-xs font-semibold text-rose-700">{error}</p>}
-
           <motion.button
             id="btn-save-profile"
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.99 }}
             type="submit"
             disabled={isSaving}
+            aria-busy={isSaving}
             className="w-full mt-2 py-3.5 bg-[#111311] hover:bg-black text-white font-extrabold text-xs tracking-wider uppercase rounded-xl cursor-pointer shadow-md transition-all flex items-center justify-center gap-2"
           >
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}

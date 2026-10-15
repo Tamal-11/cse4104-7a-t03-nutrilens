@@ -11,7 +11,7 @@ type Env = {
     R2_PUBLIC_BASE_URL?: string;
     GEMINI_API_KEY?: string;
     GEMINI_MODEL?: string;
-    ADMIN_EMAILS?: string;
+    GEMINI_SETTINGS_KV?: KVNamespace;
     MAX_IMAGE_UPLOAD_BYTES?: string;
     ALLOWED_ORIGINS?: string;
     AUTH_RATE_LIMIT: RateLimit;
@@ -23,10 +23,13 @@ type Env = {
   };
 };
 
+let geminiKeyCursor = 0;
+
 type AuthUser = {
   id: string;
   email: string;
   name?: string;
+  role?: string;
 };
 
 const app = new Hono<Env>();
@@ -276,7 +279,7 @@ app.get("/api/v1/profile", async (c) => {
       weightKg: profile.weight_kg === null ? null : Number(profile.weight_kg),
       healthConditions: profile.health_conditions ?? [],
       dietaryPreferences: profile.dietary_preferences ?? [],
-      isAdmin: isAdmin(user, c.env.ADMIN_EMAILS),
+      isAdmin: isAdmin(user),
       createdAt: profile.created_at,
       updatedAt: profile.updated_at,
     },
@@ -332,6 +335,22 @@ app.post("/api/v1/profile", async (c) => {
 
 app.post("/api/v1/upload-food-image", async (c) => {
   const user = c.get("user");
+  const profileSql = neon(c.env.DATABASE_URL);
+  const profileRows = await profileSql`
+    select full_name, age, height_cm, weight_kg
+    from user_profiles
+    where user_id = ${user.id}
+    limit 1
+  `;
+  const profile = profileRows[0];
+  if (
+    !profile?.full_name?.trim() ||
+    !Number.isFinite(Number(profile.age)) || Number(profile.age) < 13 || Number(profile.age) > 120 ||
+    !Number.isFinite(Number(profile.height_cm)) || Number(profile.height_cm) < 50 || Number(profile.height_cm) > 260 ||
+    !Number.isFinite(Number(profile.weight_kg)) || Number(profile.weight_kg) < 20 || Number(profile.weight_kg) > 500
+  ) {
+    return c.json({ success: false, message: "Complete your display name, age, height, and weight before scanning food." }, 403);
+  }
   const form = await c.req.formData();
   const image = form.get("image") as File | string | null;
 
@@ -443,7 +462,9 @@ app.post("/api/v1/analyze-food", async (c) => {
     );
   }
 
-  if (!c.env.GEMINI_API_KEY) {
+  const geminiApiKeys = await getGeminiApiKeys(c.env);
+  const geminiModel = await getGeminiModel(c.env);
+  if (geminiApiKeys.length === 0) {
     return c.json(
       {
         success: false,
@@ -463,11 +484,11 @@ app.post("/api/v1/analyze-food", async (c) => {
 
   let geminiSucceeded = false;
   try {
-    const prediction = await analyzeWithGemini(
+    const prediction = await analyzeWithGeminiKeyFallback(
       await storedImage.arrayBuffer(),
       imageRows[0].mime_type,
-      c.env.GEMINI_API_KEY,
-      c.env.GEMINI_MODEL,
+      geminiApiKeys,
+      geminiModel,
     );
     const modelValidationError = validatePrediction(prediction);
     if (modelValidationError) {
@@ -484,7 +505,7 @@ app.post("/api/v1/analyze-food", async (c) => {
     const catalogRows = await sql`
       select id
       from nutrition_catalog
-      where lower(food_name) = lower(${prediction.foodName})
+      where ${prediction.isFood} and lower(food_name) = lower(${prediction.foodName})
       limit 1
     `;
     const analysisId = crypto.randomUUID();
@@ -514,7 +535,7 @@ app.post("/api/v1/analyze-food", async (c) => {
 
     return c.json({
       success: true, message: "Analysis completed.", data: {
-        analysisId, foodName: prediction.foodName, confidence: prediction.confidence,
+        analysisId, foodName: prediction.foodName, isFood: prediction.isFood, confidence: prediction.confidence,
         nutrition: prediction.nutrition, healthBenefits: healthInsights.healthBenefits,
         warnings: healthInsights.warnings, suggestions: healthInsights.suggestions,
         explanation: healthInsights.explanation, classification: healthInsights.classification,
@@ -671,7 +692,7 @@ app.get("/api/v1/health-insights", async (c) => {
 
 app.get("/api/v1/admin/overview", async (c) => {
   const user = c.get("user");
-  if (!isAdmin(user, c.env.ADMIN_EMAILS))
+  if (!isAdmin(user))
     return c.json(
       { success: false, message: "Administrator access required." },
       403,
@@ -680,9 +701,10 @@ app.get("/api/v1/admin/overview", async (c) => {
   const sql = neon(c.env.DATABASE_URL);
   const [users, totals, events] = await Promise.all([
     sql`select p.user_id, p.full_name, p.email, p.account_status, p.created_at,
-        count(ar.id)::int as scans_count
+        coalesce(auth_user.role, 'user') as role, count(ar.id)::int as scans_count
       from user_profiles p left join analysis_requests ar on ar.user_id = p.user_id
-      group by p.user_id order by p.created_at desc`,
+      left join neon_auth."user" auth_user on auth_user.id::text = p.user_id::text
+      group by p.user_id, auth_user.role order by p.created_at desc`,
     sql`select count(distinct p.user_id)::int as total_users, count(ar.id)::int as total_scans,
         count(distinct p.user_id) filter (where p.last_active_at >= now() - interval '24 hours')::int as active_users
       from user_profiles p left join analysis_requests ar on ar.user_id = p.user_id`,
@@ -698,7 +720,7 @@ app.get("/api/v1/admin/overview", async (c) => {
         name: row.full_name,
         email: row.email,
         status: row.account_status,
-        role: isAdmin({ email: row.email }, c.env.ADMIN_EMAILS)
+        role: isAdmin({ role: row.role })
           ? "Admin"
           : "User",
         joinedDate: new Date(row.created_at).toISOString(),
@@ -720,9 +742,80 @@ app.get("/api/v1/admin/overview", async (c) => {
   });
 });
 
+app.get("/api/v1/admin/uploads", async (c) => {
+  if (!isAdmin(c.get("user")))
+    return c.json({ success: false, message: "Administrator access required." }, 403);
+  const sql = neon(c.env.DATABASE_URL);
+  const rows = await sql`
+    select fi.id, fi.user_id, p.full_name, p.email, fi.file_name, fi.mime_type,
+      fi.size_bytes, fi.uploaded_at, ar.id as analysis_id, result.predicted_food_name
+    from food_images fi
+    join user_profiles p on p.user_id = fi.user_id
+    left join analysis_requests ar on ar.image_id = fi.id
+    left join analysis_results result on result.request_id = ar.id
+    order by fi.uploaded_at desc
+    limit 300
+  `;
+  return c.json({ success: true, data: rows.map((row) => ({
+    imageId: row.id,
+    userId: row.user_id,
+    userName: row.full_name,
+    userEmail: row.email,
+    fileName: row.file_name,
+    imageUrl: `/api/v1/admin/uploads/${row.id}/image`,
+    mimeType: row.mime_type,
+    sizeBytes: Number(row.size_bytes ?? 0),
+    createdAt: new Date(row.uploaded_at).toISOString(),
+    foodName: row.predicted_food_name ?? null,
+  })) });
+});
+
+app.get("/api/v1/admin/uploads/:imageId/image", async (c) => {
+  if (!isAdmin(c.get("user")))
+    return c.json({ success: false, message: "Administrator access required." }, 403);
+  const imageId = c.req.param("imageId");
+  if (!isUuid(imageId)) return validationError(c, "imageId must be a UUID.");
+  const sql = neon(c.env.DATABASE_URL);
+  const rows = await sql`select object_key, mime_type from food_images where id = ${imageId} limit 1`;
+  if (!rows[0]) return c.json({ success: false, message: "Food image was not found." }, 404);
+  const image = await c.env.FOOD_IMAGES.get(rows[0].object_key);
+  if (!image) return c.json({ success: false, message: "Food image data was not found." }, 404);
+  return new Response(image.body, { headers: {
+    "Content-Type": rows[0].mime_type,
+    "Cache-Control": "private, max-age=3600",
+    "X-Content-Type-Options": "nosniff",
+  } });
+});
+
+app.get("/api/v1/admin/ai-settings", async (c) => {
+  if (!isAdmin(c.get("user")))
+    return c.json({ success: false, message: "Administrator access required." }, 403);
+  const keyCount = (await getGeminiApiKeys(c.env)).length;
+  return c.json({ success: true, data: {
+    configured: keyCount > 0,
+    keyCount,
+    model: await getGeminiModel(c.env),
+  } });
+});
+
+app.put("/api/v1/admin/ai-settings", async (c) => {
+  if (!isAdmin(c.get("user")))
+    return c.json({ success: false, message: "Administrator access required." }, 403);
+  if (!c.env.GEMINI_SETTINGS_KV)
+    return c.json({ success: false, message: "Gemini settings storage is unavailable on this server." }, 503);
+  const parsed = await parseGeminiSettingsBody(c.req.raw);
+  if (!parsed.ok) return validationError(c, parsed.message);
+  geminiKeyCursor = 0;
+  await Promise.all([
+    c.env.GEMINI_SETTINGS_KV.put("api-keys", JSON.stringify(parsed.value.apiKeys)),
+    c.env.GEMINI_SETTINGS_KV.put("model", parsed.value.model),
+  ]);
+  return c.json({ success: true, data: { configured: true, keyCount: parsed.value.apiKeys.length, model: parsed.value.model } });
+});
+
 app.put("/api/v1/admin/users/:userId/status", async (c) => {
   const admin = c.get("user");
-  if (!isAdmin(admin, c.env.ADMIN_EMAILS))
+  if (!isAdmin(admin))
     return c.json(
       { success: false, message: "Administrator access required." },
       403,
@@ -754,6 +847,7 @@ app.put("/api/v1/admin/users/:userId/status", async (c) => {
   if (!rows[0])
     return c.json({ success: false, message: "User was not found." }, 404);
   const row = rows[0];
+  const targetRoleRows = await sql`select role from neon_auth."user" where id::text = ${targetUserId} limit 1`;
   return c.json({
     success: true,
     data: {
@@ -761,7 +855,7 @@ app.put("/api/v1/admin/users/:userId/status", async (c) => {
       name: row.full_name,
       email: row.email,
       status: row.account_status,
-      role: isAdmin({ email: row.email }, c.env.ADMIN_EMAILS)
+      role: isAdmin({ role: targetRoleRows[0]?.role })
         ? "Admin"
         : "User",
       joinedDate: new Date(row.created_at).toISOString(),
@@ -799,7 +893,7 @@ async function getCurrentUser(
 
   const payload = (await response.json().catch(() => null)) as {
     session?: { userId?: string };
-    user?: { id?: string; email?: string; name?: string };
+    user?: { id?: string; email?: string; name?: string; role?: string };
   } | null;
   if (!payload || typeof payload !== "object") {
     return null;
@@ -811,7 +905,7 @@ async function getCurrentUser(
     return null;
   }
 
-  return { id, email, name: payload.user?.name };
+  return { id, email, name: payload.user?.name, role: payload.user?.role };
 }
 
 async function ensureProfile(databaseUrl: string, user: AuthUser) {
@@ -856,6 +950,7 @@ async function validateUploadedImage(image: File, configuredMaxSize?: string) {
 
 type ModelPrediction = {
   success?: boolean;
+  isFood: boolean;
   foodName: string;
   confidence: number;
   nutrition: {
@@ -886,9 +981,12 @@ type GeminiFailure = Error & {
   retryable: boolean;
   status?: number;
   attempts?: number;
+  quotaLimited?: boolean;
 };
 
 const FOOD_ANALYSIS_INSTRUCTIONS = `Analyze this food image. Identify the primary dish and estimate nutrition for the visible portion. Return only the requested JSON. Nutrition is an estimate, not medical advice. Use confidence from 0 to 1.
+
+If the image does not clearly show food, set isFood to false, foodName to "Not food", and all nutrition values to 0. Set healthBenefits, warnings, and suggestions to empty arrays. Set explanation to "This image does not show food, so nutrition information is unavailable." If it shows food, set isFood to true.
 
 Write for an everyday person with no nutrition knowledge. Keep every response compact and easy to scan:
 - healthBenefits: exactly 2 short phrases, 3-7 words each, such as "Steady energy for your day" or "Helps you stay full". Do not use nutrition jargon by itself.
@@ -900,6 +998,7 @@ Avoid medical claims, diagnoses, acronyms, and unexplained terms. Do not promise
 const GEMINI_RESPONSE_SCHEMA = {
   type: "object",
   properties: {
+    isFood: { type: "boolean" },
     foodName: { type: "string" },
     confidence: { type: "number" },
     nutrition: {
@@ -916,7 +1015,7 @@ const GEMINI_RESPONSE_SCHEMA = {
     explanation: { type: "string", description: "One friendly 8-16 word sentence with the main practical takeaway." },
     classification: { type: "string", enum: ["Healthy", "Moderate", "Unhealthy"] },
   },
-  required: ["foodName", "confidence", "nutrition", "classification"],
+  required: ["isFood", "foodName", "confidence", "nutrition", "classification"],
 };
 
 async function analyzeWithGemini(image: ArrayBuffer, mimeType: string, apiKey: string, model?: string): Promise<ModelPrediction> {
@@ -944,11 +1043,14 @@ async function analyzeWithGemini(image: ArrayBuffer, mimeType: string, apiKey: s
         body: requestBody,
       });
       if (!response.ok) {
+        const responseBody = await response.text().catch(() => "");
+        const quotaLimited = isGeminiQuotaLimit(response.status, responseBody);
         const error = createGeminiFailure(
-          `UPSTREAM_HTTP_${response.status}`,
+          quotaLimited ? "QUOTA_LIMITED" : `UPSTREAM_HTTP_${response.status}`,
           isRetryableGeminiStatus(response.status),
           response.status,
         );
+        error.quotaLimited = quotaLimited;
         if (!error.retryable || attempt === GEMINI_MAX_ATTEMPTS) throw error;
         lastError = error;
       } else {
@@ -980,6 +1082,12 @@ async function analyzeWithGemini(image: ArrayBuffer, mimeType: string, apiKey: s
 
 function isRetryableGeminiStatus(status: number) {
   return status === 408 || status === 429 || status >= 500;
+}
+
+function isGeminiQuotaLimit(status: number, responseBody: string) {
+  if (status === 429) return true;
+  if (status !== 403) return false;
+  return /quota|rate.?limit|resource.?exhausted|too many requests/i.test(responseBody);
 }
 
 function createGeminiFailure(code: string, retryable: boolean, status?: number): GeminiFailure {
@@ -1017,6 +1125,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer) {
 }
 
 function validatePrediction(value: ModelPrediction): string | null {
+  if (typeof value.isFood !== "boolean") return "isFood must be a boolean";
   if (typeof value.foodName !== "string" || !value.foodName.trim() || value.foodName.length > 120) return "foodName is invalid";
   if (
     !Number.isFinite(value.confidence) ||
@@ -1046,15 +1155,12 @@ function validatePrediction(value: ModelPrediction): string | null {
   return null;
 }
 
-function isAdmin(user: Pick<AuthUser, "email">, configured?: string) {
-  const admins = (configured ?? "")
-    .split(",")
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
-  return admins.includes(user.email.toLowerCase());
+function isAdmin(user: Pick<AuthUser, "role">) {
+  return user.role?.trim().toLowerCase() === "admin";
 }
 
 type ParseResult<T> = { ok: true; value: T } | { ok: false; message: string };
+type GeminiSettingsInput = { apiKeys: string[]; model: string };
 type ProfileInput = {
   fullName?: string;
   age?: number;
@@ -1132,6 +1238,62 @@ async function parseProfileBody(request: Request): Promise<ParseResult<ProfileIn
     if (value[field] !== undefined && !isStringArray(value[field], 20, 100)) return { ok: false, message: `${field} must contain at most 20 strings of 100 characters or fewer.` };
   }
   return { ok: true, value: value as ProfileInput };
+}
+
+async function parseGeminiSettingsBody(request: Request): Promise<ParseResult<GeminiSettingsInput>> {
+  const parsed = await parseJsonObject(request);
+  if (!parsed.ok) return parsed;
+  if (Object.keys(parsed.value).some((key) => key !== "apiKeys" && key !== "model"))
+    return { ok: false, message: "Request contains an unsupported field." };
+  const apiKeys = parsed.value.apiKeys;
+  const model = parsed.value.model;
+  if (!Array.isArray(apiKeys) || apiKeys.length < 1 || apiKeys.length > 20 || apiKeys.some((key) => typeof key !== "string" || key.trim().length < 10 || key.trim().length > 500))
+    return { ok: false, message: "apiKeys must contain between 1 and 20 keys, each 10 to 500 characters long." };
+  const normalizedKeys = apiKeys.map((key) => (key as string).trim());
+  if (new Set(normalizedKeys).size !== normalizedKeys.length)
+    return { ok: false, message: "Each API key must be unique." };
+  if (typeof model !== "string" || !/^[a-zA-Z0-9._-]{1,100}$/.test(model.trim()))
+    return { ok: false, message: "model must be a valid Gemini model identifier." };
+  return { ok: true, value: { apiKeys: normalizedKeys, model: model.trim() } };
+}
+
+async function getGeminiApiKeys(env: Env["Bindings"]): Promise<string[]> {
+  const saved = await env.GEMINI_SETTINGS_KV?.get("api-keys");
+  if (saved) {
+    try {
+      const keys: unknown = JSON.parse(saved);
+      if (Array.isArray(keys)) return keys.filter((key): key is string => typeof key === "string" && key.length > 0);
+    } catch {}
+  }
+  const legacySaved = await env.GEMINI_SETTINGS_KV?.get("api-key");
+  const fallback = legacySaved || env.GEMINI_API_KEY;
+  return fallback ? [fallback] : [];
+}
+
+async function analyzeWithGeminiKeyFallback(
+  image: ArrayBuffer,
+  mimeType: string,
+  keys: string[],
+  model: string,
+) {
+  let lastQuotaError: GeminiFailure | null = null;
+  for (let keyAttempt = 0; keyAttempt < keys.length; keyAttempt += 1) {
+    const keyIndex = geminiKeyCursor % keys.length;
+    geminiKeyCursor = (geminiKeyCursor + 1) % keys.length;
+    try {
+      return await analyzeWithGemini(image, mimeType, keys[keyIndex], model);
+    } catch (error) {
+      const failure = toGeminiFailure(error);
+      if (!failure.quotaLimited) throw error;
+      lastQuotaError = failure;
+      if (keyAttempt + 1 === keys.length) throw failure;
+    }
+  }
+  throw lastQuotaError ?? createGeminiFailure("QUOTA_LIMITED", true, 429);
+}
+
+async function getGeminiModel(env: Env["Bindings"]) {
+  return (await env.GEMINI_SETTINGS_KV?.get("model")) || env.GEMINI_MODEL || "gemini-2.5-flash";
 }
 
 async function parseImageIdBody(request: Request): Promise<ParseResult<{ imageId: string }>> {

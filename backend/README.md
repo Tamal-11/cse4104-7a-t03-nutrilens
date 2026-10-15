@@ -41,9 +41,10 @@ NEON_AUTH_URL
 ALLOWED_ORIGINS
 GEMINI_API_KEY
 GEMINI_MODEL
-ADMIN_EMAILS
 MAX_IMAGE_UPLOAD_BYTES
 ```
+
+Admin access comes from the authenticated Neon Auth user's `role` field: `admin` grants access; every other role is treated as a regular user. The admin account table reads roles from `neon_auth.user`.
 
 Cloudflare R2 is bound as `FOOD_IMAGES` in `backend/wrangler.toml`.
 
@@ -83,6 +84,7 @@ The production Worker includes:
 - AI response validation before persistence.
 
 Gemini is called only by the backend; never add `GEMINI_API_KEY` to frontend environment variables.
+The admin AI settings endpoint can save a pool of up to 20 Gemini keys in `GEMINI_SETTINGS_KV`; analysis requests rotate through the pool in order. `GEMINI_API_KEY` remains a one-key fallback for environments that do not configure a pool.
 
 ## Main routes
 

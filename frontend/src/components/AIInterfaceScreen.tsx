@@ -250,7 +250,14 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
               </div>
 
               {/* Detected food list card */}
-              <div className="bg-[#f2f8ed] border border-[#e4eedc] rounded-2xl p-4 grid grid-cols-2 gap-3 shadow-xs">
+                {!currentFood.isFood && (
+                  <div role="status" className="bg-rose-50 border border-rose-200 rounded-2xl p-4 shadow-xs">
+                    <h4 className="text-lg font-black text-rose-800">No food detected</h4>
+                    <p className="mt-1 text-sm font-semibold text-rose-700">Info: This image does not show food, so nutrition information is unavailable.</p>
+                  </div>
+                )}
+
+                {currentFood.isFood && <div className="bg-[#f2f8ed] border border-[#e4eedc] rounded-2xl p-4 grid grid-cols-2 gap-3 shadow-xs">
                 
                 {/* Left Column: Detected Food name */}
                 <div className="flex flex-col justify-center pr-3 border-r border-[#d4ded0]">
@@ -283,14 +290,14 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
                     <span>Fat : <span className="font-extrabold text-slate-900">≈ {currentFood.macros.fat} g</span></span>
                   </div>
                 </div>
-              </div>
+                </div>}
 
-              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-relaxed text-amber-800">
+              {currentFood.isFood && <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-relaxed text-amber-800">
                 Nutrition values are catalog estimates for {currentFood.servingSize}. They are not a measurement of the photographed portion.
-              </div>
+              </div>}
 
               {/* Interactive Nutrition Pie Chart Panel */}
-              <div className="bg-white p-4.5 border border-[#e2edd8] rounded-[24px] shadow-[0_4px_16px_rgba(89,155,56,0.03)] flex flex-col items-center">
+              {currentFood.isFood && <div className="bg-white p-4.5 border border-[#e2edd8] rounded-[24px] shadow-[0_4px_16px_rgba(89,155,56,0.03)] flex flex-col items-center">
                 <span className="text-[10px] font-bold text-[#558e38] bg-[#f4f8f1] px-3 py-1 rounded-full uppercase tracking-wider mb-2 flex items-center gap-1">
                   <ChartIcon className="w-3.5 h-3.5 text-[#558e38]" /> Estimated Macronutrients / 100 g
                 </span>
@@ -364,10 +371,10 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
                     })}
                   </div>
                 </div>
-              </div>
+              </div>}
 
               {/* Pros and Cons table panel */}
-              <div className="bg-white rounded-[24px] border border-[#e2edd8] p-4.5 grid grid-cols-2 gap-4 shadow-[0_4px_20px_rgba(89,155,56,0.02)]">
+              {currentFood.isFood && <div className="bg-white rounded-[24px] border border-[#e2edd8] p-4.5 grid grid-cols-2 gap-4 shadow-[0_4px_20px_rgba(89,155,56,0.02)]">
                 
                 {/* Left Column: Pros */}
                 <div className="pr-1 border-r border-[#ebf1e8]">
@@ -412,10 +419,10 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
                     ))}
                   </div>
                 </div>
-              </div>
+              </div>}
 
               {/* Diagnostic warnings and medical indicators */}
-              {currentFood.warnings && currentFood.warnings.length > 0 && (
+              {currentFood.isFood && currentFood.warnings && currentFood.warnings.length > 0 && (
                 <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100/80 flex gap-3 shadow-xs">
                   <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div className="text-sm leading-relaxed">
@@ -433,10 +440,10 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
               )}
 
               {/* AI Interaction statement explanation */}
-              <div className="bg-white p-4.5 rounded-2xl border border-[#e2edd8] text-sm leading-relaxed text-slate-600 font-semibold shadow-xs">
+              {currentFood.isFood && <div className="bg-white p-4.5 rounded-2xl border border-[#e2edd8] text-sm leading-relaxed text-slate-600 font-semibold shadow-xs">
                 <span className="font-extrabold text-slate-800 block mb-1 uppercase tracking-wider text-xs text-[#426a2e]">Meal Synthesis Summary</span>
                 <p className="mt-1 text-slate-600 font-medium">{currentFood.explanation}</p>
-              </div>
+              </div>}
 
               {/* Center Clean Action Button: Analyze Another Plate */}
               <motion.button

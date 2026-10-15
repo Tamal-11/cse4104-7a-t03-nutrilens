@@ -49,4 +49,4 @@ console.log('Installing project dependencies once with pnpm...');
 run('pnpm install');
 
 console.log('\nDependency setup complete.');
-console.log('Add GEMINI_API_KEY to .env, then run pnpm run dev.');
+console.log('Run pnpm run dev, then add Gemini API keys in the /admin AI settings tab.');
