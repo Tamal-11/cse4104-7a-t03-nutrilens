@@ -15,17 +15,10 @@ Images are uploaded to the backend first. The backend sends them to Gemini with 
 
 ## Run locally
 
-Requirements: Node.js 22+, pnpm, and a Gemini API key.
+Requirements: Node.js 22+, pnpm, and admin access to the app. Add Gemini API keys from the `/admin` AI settings tab.
 
 ```bash
 pnpm run setup
-```
-
-Copy `.env.example` to `.env`, then set:
-
-```text
-GEMINI_API_KEY=your_key_here
-GEMINI_MODEL=gemini-2.5-flash
 ```
 
 Start the app:
@@ -34,7 +27,7 @@ Start the app:
 pnpm run dev
 ```
 
-Open `http://localhost:3000`. Never add the key to a frontend (`VITE_`) variable or commit `.env`.
+Open `http://localhost:3000/admin` and add one or more Gemini keys in AI settings. The local server stores these in the ignored `.local-storage/admin-ai-settings.json` file. Never put keys in frontend (`VITE_`) variables or commit secrets.
 
 ## Useful commands
 
@@ -55,6 +48,8 @@ Set `GEMINI_API_KEY` as a Cloudflare Worker secret:
 cd backend
 npx wrangler secret put GEMINI_API_KEY
 ```
+
+For the `/admin` AI settings tab to change the key pool in production, create a Workers KV namespace with `npx wrangler kv namespace create GEMINI_SETTINGS_KV`, then add its returned ID to `backend/wrangler.toml` as a `[[kv_namespaces]]` binding named `GEMINI_SETTINGS_KV`. The dashboard stores keys only in server-side KV; provision that binding before deploying the admin settings feature. Analysis calls rotate through the configured keys in order. The local demo server stores its key pool in an ignored local file.
 
 Optional non-secret configuration: `GEMINI_MODEL` (defaults to `gemini-2.5-flash`). Production additionally needs its existing database, authentication, storage, CORS, and administrator settings.
 

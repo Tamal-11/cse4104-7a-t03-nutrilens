@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { config } from 'dotenv';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -13,9 +13,18 @@ config({ path: path.join(repoRoot, '.env') });
 
 const PORT = Number(process.env.LOCAL_API_PORT || 8787);
 const HOST = '127.0.0.1';
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
+let GEMINI_API_KEYS = process.env.GEMINI_API_KEY ? [process.env.GEMINI_API_KEY] : [];
+let GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+let geminiKeyCursor = 0;
+const localSettingsPath = path.join(repoRoot, '.local-storage', 'admin-ai-settings.json');
 const uploadDir = path.join(repoRoot, '.local-storage', 'uploads');
+
+try {
+  const persistedSettings = JSON.parse(await readFile(localSettingsPath, 'utf8'));
+  if (Array.isArray(persistedSettings.apiKeys)) GEMINI_API_KEYS = persistedSettings.apiKeys.filter((key) => typeof key === 'string' && key.length > 0);
+  else if (typeof persistedSettings.apiKey === 'string') GEMINI_API_KEYS = [persistedSettings.apiKey];
+  if (typeof persistedSettings.model === 'string') GEMINI_MODEL = persistedSettings.model;
+} catch {}
 
 const app = new Hono();
 
@@ -23,6 +32,7 @@ const demoUser = {
   id: 'demo-user-001',
   email: process.env.LOCAL_DEMO_EMAIL || 'demo@nutrilens.local',
   name: process.env.LOCAL_DEMO_NAME || 'NutriLens Demo User',
+  role: (process.env.LOCAL_DEMO_ROLE || 'admin').trim().toLowerCase(),
 };
 
 const profile = {
@@ -35,7 +45,7 @@ const profile = {
   weightKg: null,
   healthConditions: [],
   dietaryPreferences: [],
-  isAdmin: true,
+  isAdmin: demoUser.role === 'admin',
 };
 
 const images = new Map();
@@ -48,7 +58,7 @@ const userAccounts = new Map([
       name: demoUser.name,
       email: demoUser.email,
       status: 'Active',
-      role: 'Admin',
+      role: demoUser.role === 'admin' ? 'Admin' : 'User',
       joinedDate: new Date().toISOString(),
       scansCount: 0,
     },
@@ -57,6 +67,8 @@ const userAccounts = new Map([
 const logs = ['Local demo API started. Cloud database and R2 are not required in this mode.'];
 
 const FOOD_ANALYSIS_INSTRUCTIONS = `Analyze this food image. Identify the primary dish and estimate nutrition for the visible portion. Return only the requested JSON. Nutrition is an estimate, not medical advice. Use confidence from 0 to 1.
+
+If the image does not clearly show food, set isFood to false, foodName to "Not food", and all nutrition values to 0. Set healthBenefits, warnings, and suggestions to empty arrays. Set explanation to "This image does not show food, so nutrition information is unavailable." If it shows food, set isFood to true.
 
 Write for an everyday person with no nutrition knowledge. Keep every response compact and easy to scan:
 - healthBenefits: exactly 2 short phrases, 3-7 words each, such as "Steady energy for your day" or "Helps you stay full". Do not use nutrition jargon by itself.
@@ -68,6 +80,7 @@ Avoid medical claims, diagnoses, acronyms, and unexplained terms. Do not promise
 const GEMINI_RESPONSE_SCHEMA = {
   type: 'object',
   properties: {
+    isFood: { type: 'boolean' },
     foodName: { type: 'string' }, confidence: { type: 'number' },
     nutrition: { type: 'object', properties: {
       calories: { type: 'number' }, protein: { type: 'number' }, carbohydrates: { type: 'number' },
@@ -79,7 +92,7 @@ const GEMINI_RESPONSE_SCHEMA = {
     explanation: { type: 'string', description: 'One friendly 8-16 word sentence with the main practical takeaway.' },
     classification: { type: 'string', enum: ['Healthy', 'Moderate', 'Unhealthy'] },
   },
-  required: ['foodName', 'confidence', 'nutrition', 'classification'],
+  required: ['isFood', 'foodName', 'confidence', 'nutrition', 'classification'],
 };
 
 app.use(
@@ -103,7 +116,7 @@ app.get('/', (c) =>
 );
 
 app.get('/health', async (c) => {
-  const ai = { ready: Boolean(GEMINI_API_KEY), status: GEMINI_API_KEY ? 'configured' : 'not_configured', provider: 'Gemini', model: GEMINI_MODEL };
+  const ai = { ready: GEMINI_API_KEYS.length > 0, status: GEMINI_API_KEYS.length ? 'configured' : 'not_configured', provider: 'Gemini', model: GEMINI_MODEL };
   return c.json({
     status: ai.ready ? 'healthy' : 'degraded',
     server: { status: 'up', mode: 'local-demo' },
@@ -148,6 +161,13 @@ app.use('/api/v1/*', async (c, next) => {
   await next();
 });
 
+app.use('/api/v1/admin/*', async (c, next) => {
+  if (demoUser.role !== 'admin') {
+    return c.json({ success: false, message: 'Administrator access required.' }, 403);
+  }
+  await next();
+});
+
 app.get('/api/v1/profile', (c) => c.json({ success: true, data: profile }));
 
 app.post('/api/v1/profile', async (c) => {
@@ -167,6 +187,9 @@ app.post('/api/v1/profile', async (c) => {
 });
 
 app.post('/api/v1/upload-food-image', async (c) => {
+  if (!profile.fullName?.trim() || !Number.isFinite(profile.age) || profile.age < 13 || profile.age > 120 || !Number.isFinite(profile.heightCm) || profile.heightCm < 50 || profile.heightCm > 260 || !Number.isFinite(profile.weightKg) || profile.weightKg < 20 || profile.weightKg > 500) {
+    return c.json({ success: false, message: 'Complete your display name, age, height, and weight before scanning food.' }, 403);
+  }
   await mkdir(uploadDir, { recursive: true });
   const form = await c.req.formData();
   const image = form.get('image');
@@ -252,7 +275,7 @@ app.post('/api/v1/analyze-food', async (c) => {
     return c.json(
       {
         success: false,
-        message: GEMINI_API_KEY ? 'Food analysis service is unavailable.' : 'Food analysis is not configured. Add GEMINI_API_KEY to .env.',
+        message: GEMINI_API_KEYS.length ? 'Food analysis service is unavailable.' : 'Food analysis is not configured. Add keys in Admin AI settings or configure GEMINI_API_KEY in .env.',
       },
       503,
     );
@@ -260,6 +283,7 @@ app.post('/api/v1/analyze-food', async (c) => {
 
   const analysis = {
     analysisId: crypto.randomUUID(),
+    isFood: prediction.isFood,
     foodName: prediction.foodName,
     confidence: prediction.confidence,
     imageUrl: image.imageUrl,
@@ -339,6 +363,66 @@ app.get('/api/v1/admin/overview', (c) => {
   });
 });
 
+app.get('/api/v1/admin/uploads', async (c) => {
+  const data = await Promise.all([...images.values()].map(async (image) => {
+    const analysis = [...analyses.values()].find((item) => item.imageUrl === image.imageUrl);
+    return {
+      imageId: image.imageId,
+      userId: demoUser.id,
+      userName: demoUser.name,
+      userEmail: demoUser.email,
+      fileName: image.fileName,
+      imageUrl: `/api/v1/admin/uploads/${image.imageId}/image`,
+      mimeType: image.mimeType,
+      sizeBytes: existsSync(image.filePath) ? (await stat(image.filePath)).size : 0,
+      createdAt: image.createdAt,
+      foodName: analysis?.foodName ?? null,
+    };
+  }));
+  return c.json({ success: true, data: data.sort((a, b) => b.createdAt.localeCompare(a.createdAt)) });
+});
+
+app.get('/api/v1/admin/uploads/:imageId/image', async (c) => {
+  const record = images.get(c.req.param('imageId'));
+  if (!record || !existsSync(record.filePath)) return c.json({ success: false, message: 'Food image was not found.' }, 404);
+  const file = await readFile(record.filePath);
+  return new Response(file, { headers: { 'Content-Type': record.mimeType || 'application/octet-stream', 'Cache-Control': 'private, max-age=3600', 'X-Content-Type-Options': 'nosniff' } });
+});
+
+app.get('/api/v1/admin/ai-settings', (c) => c.json({
+  success: true,
+  data: { configured: GEMINI_API_KEYS.length > 0, keyCount: GEMINI_API_KEYS.length, model: GEMINI_MODEL },
+}));
+
+app.put('/api/v1/admin/ai-settings', async (c) => {
+  const body = await readJsonSafe(c);
+  const apiKeys = Array.isArray(body.apiKeys) ? body.apiKeys.map((key) => typeof key === 'string' ? key.trim() : '') : [];
+  const model = typeof body.model === 'string' ? body.model.trim() : '';
+  if (Object.keys(body).some((key) => !['apiKeys', 'model'].includes(key))) return c.json({ success: false, message: 'Request contains an unsupported field.' }, 400);
+  if (apiKeys.length < 1 || apiKeys.length > 20 || apiKeys.some((key) => key.length < 10 || key.length > 500)) return c.json({ success: false, message: 'apiKeys must contain between 1 and 20 keys, each 10 to 500 characters long.' }, 400);
+  if (new Set(apiKeys).size !== apiKeys.length) return c.json({ success: false, message: 'Each API key must be unique.' }, 400);
+  if (!/^[a-zA-Z0-9._-]{1,100}$/.test(model)) return c.json({ success: false, message: 'model must be a valid Gemini model identifier.' }, 400);
+
+  GEMINI_API_KEYS = apiKeys;
+  geminiKeyCursor = 0;
+  GEMINI_MODEL = model;
+  await mkdir(path.dirname(localSettingsPath), { recursive: true });
+  await writeFile(localSettingsPath, `${JSON.stringify({ apiKeys, model }, null, 2)}\n`, { mode: 0o600 });
+
+  const safeModel = model.replace(/\\/g, '\\\\').replace(/\r?\n/g, '');
+  const envPath = path.join(repoRoot, '.env');
+  let envContents = '';
+  try { envContents = await readFile(envPath, 'utf8'); } catch {}
+  for (const [key, value] of [['GEMINI_MODEL', safeModel]]) {
+    const expression = new RegExp(`^\\s*${key}\\s*=.*$`, 'm');
+    if (expression.test(envContents)) envContents = envContents.replace(expression, `${key}=${value}`);
+    else envContents += `${envContents.endsWith('\n') || !envContents ? '' : '\n'}${key}=${value}\n`;
+  }
+  await writeFile(envPath, envContents, { mode: 0o600 });
+  logs.unshift('Gemini model settings were updated.');
+  return c.json({ success: true, data: { configured: true, keyCount: apiKeys.length, model } });
+});
+
 app.put('/api/v1/admin/users/:userId/status', async (c) => {
   const account = userAccounts.get(c.req.param('userId'));
   if (!account) return c.json({ success: false, message: 'User was not found.' }, 404);
@@ -361,6 +445,7 @@ function authResponse(c, body = {}) {
     if (account) {
       account.email = demoUser.email;
       account.name = demoUser.name;
+      account.role = demoUser.role === 'admin' ? 'Admin' : 'User';
     }
   }
   c.header('Set-Cookie', 'nutrilens_demo_session=demo; Path=/; HttpOnly; SameSite=Lax');
@@ -368,33 +453,45 @@ function authResponse(c, body = {}) {
 }
 
 async function requestPrediction(image) {
-  if (!GEMINI_API_KEY) throw new Error('Gemini is not configured.');
+  if (!GEMINI_API_KEYS.length) throw new Error('Gemini is not configured.');
   const buffer = await readFile(image.filePath);
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
-    signal: AbortSignal.timeout(30_000),
-    body: JSON.stringify({
+  const requestBody = JSON.stringify({
       contents: [{ parts: [
         { text: FOOD_ANALYSIS_INSTRUCTIONS },
         { inlineData: { mimeType: image.mimeType, data: buffer.toString('base64') } },
       ] }],
       generationConfig: { responseMimeType: 'application/json', responseSchema: GEMINI_RESPONSE_SCHEMA, temperature: 0.2 },
-    }),
-  });
+    });
 
-  const payload = await response.json().catch(() => null);
-  if (!response.ok || !payload) {
-    throw new Error(`Gemini returned ${response.status}.`);
+  for (let keyAttempt = 0; keyAttempt < GEMINI_API_KEYS.length; keyAttempt += 1) {
+    const apiKey = GEMINI_API_KEYS[geminiKeyCursor % GEMINI_API_KEYS.length];
+    geminiKeyCursor = (geminiKeyCursor + 1) % GEMINI_API_KEYS.length;
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      signal: AbortSignal.timeout(30_000),
+      body: requestBody,
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text().catch(() => '');
+      const quotaLimited = response.status === 429 || (response.status === 403 && /quota|rate.?limit|resource.?exhausted|too many requests/i.test(errorBody));
+      if (quotaLimited && keyAttempt + 1 < GEMINI_API_KEYS.length) continue;
+      throw new Error(quotaLimited ? 'Gemini API key pool is quota limited.' : `Gemini returned ${response.status}.`);
+    }
+
+    const payload = await response.json().catch(() => null);
+    if (!payload) throw new Error('Gemini returned an invalid response.');
+    const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
+    if (!text) throw new Error('Gemini returned no content.');
+    let prediction;
+    try { prediction = JSON.parse(text); } catch { throw new Error('Gemini returned invalid JSON.'); }
+    if (!isValidPrediction(prediction)) {
+      throw new Error('AI service returned an invalid prediction payload.');
+    }
+    return { ...prediction, modelName: 'gemini', modelVersion: GEMINI_MODEL };
   }
-  const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || '';
-  if (!text) throw new Error('Gemini returned no content.');
-  let prediction;
-  try { prediction = JSON.parse(text); } catch { throw new Error('Gemini returned invalid JSON.'); }
-  if (!isValidPrediction(prediction)) {
-    throw new Error('AI service returned an invalid prediction payload.');
-  }
-  return { ...prediction, modelName: 'gemini', modelVersion: GEMINI_MODEL };
+  throw new Error('Gemini API key pool is quota limited.');
 }
 
 async function readJsonSafe(c) {
@@ -417,6 +514,7 @@ function matchesImageSignature(bytes, mimeType) {
 }
 
 function isValidPrediction(value) {
+  if (typeof value.isFood !== 'boolean') return false;
   if (!value || typeof value !== 'object' || typeof value.foodName !== 'string' || !value.foodName.trim() || value.foodName.length > 120) return false;
   if (!Number.isFinite(value.confidence) || value.confidence < 0 || value.confidence > 1) return false;
   if (!value.nutrition || !['calories', 'protein', 'carbohydrates', 'fats', 'fiber'].every((key) => Number.isFinite(value.nutrition[key]) && value.nutrition[key] >= 0)) return false;

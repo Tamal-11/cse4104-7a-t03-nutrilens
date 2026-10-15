@@ -74,7 +74,7 @@ export const endpointDocs: EndpointDoc[] = [
     responses: {
       "200": {
         token: "session token, when returned",
-        user: { id: "uuid", email: "user@example.com", name: "User Name" },
+        user: { id: "uuid", email: "user@example.com", name: "User Name", role: "user | admin" },
       },
       "400": { message: "Invalid registration information." },
     },
@@ -95,7 +95,7 @@ export const endpointDocs: EndpointDoc[] = [
     responses: {
       "200": {
         token: "session token, when returned",
-        user: { id: "uuid", email: "user@example.com", name: "User Name" },
+        user: { id: "uuid", email: "user@example.com", name: "User Name", role: "user | admin" },
       },
       "400": { message: "Invalid sign-in information." },
       "401": { message: "Invalid email or password." },
@@ -111,7 +111,7 @@ export const endpointDocs: EndpointDoc[] = [
     responses: {
       "200": {
         session: { userId: "uuid" },
-        user: { id: "uuid", email: "user@example.com", name: "User Name" },
+        user: { id: "uuid", email: "user@example.com", name: "User Name", role: "user | admin" },
       },
       "401": { message: "No active session." },
     },

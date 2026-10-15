@@ -96,11 +96,12 @@ checkDependencies();
 console.log('\nStarting NutriLens locally...');
 console.log('Frontend: http://localhost:3000');
 console.log('Local API: http://localhost:8787');
-console.log('AI provider: Gemini (configured with GEMINI_API_KEY in .env)');
+console.log('AI provider: Gemini (manage API keys at http://localhost:3000/admin)');
 console.log('Press Ctrl+C to stop all services.\n');
 
 const commonEnv = {
   LOCAL_DEMO_MODE: 'true',
+  VITE_USE_MOCK_DATA: 'true',
 };
 
 start('Local API', 'pnpm --filter nutrilens-backend dev:local', commonEnv, true);
