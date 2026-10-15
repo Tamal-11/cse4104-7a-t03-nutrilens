@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, User, Compass } from 'lucide-react';
 
@@ -14,34 +14,57 @@ import AdminScreen from './components/AdminScreen';
 // Types & Data Defaults
 import { ScreenType, UserProfile, FoodAnalysis } from './types';
 import { EMPTY_USER } from './data';
+import { MOCK_USER, createMockHistory } from './data/mockData';
 import {api, mapAnalysis, mapProfile} from './services/api';
 import {usePwaInstall} from './hooks/usePwaInstall';
 
+const isProfileComplete = (user: UserProfile) =>
+  Boolean(user.name.trim()) && user.age >= 13 && user.age <= 120 &&
+  user.height >= 50 && user.height <= 260 && user.weight >= 20 && user.weight <= 500;
+
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<ScreenType>('home');
-  const [currentUser, setCurrentUser] = useState<UserProfile>(EMPTY_USER);
-  const [historyList, setHistoryList] = useState<FoodAnalysis[]>([]);
+  const useMockData = import.meta.env.VITE_USE_MOCK_DATA === 'true';
+  const [currentScreen, setCurrentScreen] = useState<ScreenType>(useMockData ? 'dashboard' : 'home');
+  const [currentUser, setCurrentUser] = useState<UserProfile>(useMockData ? MOCK_USER : EMPTY_USER);
+  const [historyList, setHistoryList] = useState<FoodAnalysis[]>(() => useMockData ? createMockHistory() : []);
   const [selectedScanItem, setSelectedScanItem] = useState<FoodAnalysis | null>(null);
+  const selectedScanItemRef = useRef<FoodAnalysis | null>(null);
+  const profileCompleteRef = useRef(useMockData || isProfileComplete(currentUser));
+  const [profileGateNotice, setProfileGateNotice] = useState('');
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const {canInstall, installed, install} = usePwaInstall();
 
   const loadAccountData = async () => {
     const [profile, history] = await Promise.all([api.profile(), api.history()]);
-    setCurrentUser(mapProfile(profile.data));
+    const loadedUser = mapProfile(profile.data);
+    profileCompleteRef.current = isProfileComplete(loadedUser);
+    setCurrentUser(loadedUser);
     setHistoryList(history.data.map(mapAnalysis));
+    return loadedUser;
   };
 
   useEffect(() => {
+    if (useMockData) return;
     if (window.location.pathname === '/admin') setCurrentScreen('admin');
     api.session()
       .then(async () => {
-        await loadAccountData();
-        setCurrentScreen(window.location.pathname === '/admin' ? 'admin' : 'ai');
+        const loadedUser = await loadAccountData();
+        const isAdminRoute = window.location.pathname === '/admin';
+        if (!isAdminRoute && !isProfileComplete(loadedUser)) {
+          setProfileGateNotice('Complete your display name, age, height, and weight before scanning food.');
+        }
+        setCurrentScreen(isAdminRoute ? 'admin' : isProfileComplete(loadedUser) ? 'ai' : 'profile');
       })
       .catch(() => undefined);
   }, []);
 
   const handleNavigate = (screen: ScreenType) => {
+    if (screen === 'ai' && !selectedScanItemRef.current && !profileCompleteRef.current) {
+      setProfileGateNotice('Complete your display name, age, height, and weight before scanning food.');
+      setCurrentScreen('profile');
+      return;
+    }
+    if (screen === 'profile' && isProfileComplete(currentUser)) setProfileGateNotice('');
     if (screen === 'admin') window.history.pushState({}, '', '/admin');
     else if (window.location.pathname === '/admin') window.history.pushState({}, '', '/');
     setCurrentScreen(screen);
@@ -49,19 +72,31 @@ export default function App() {
 
   // Status handler triggers
   const handleLoginSuccess = async (userObj: UserProfile) => {
+    profileCompleteRef.current = isProfileComplete(userObj);
     setCurrentUser(userObj);
-    await loadAccountData();
+    const loadedUser = await loadAccountData();
+    if (!isProfileComplete(loadedUser)) {
+      setProfileGateNotice('Complete your display name, age, height, and weight before scanning food.');
+      setCurrentScreen('profile');
+    }
     setShowInstallPrompt(true);
   };
 
   const handleRegisterSuccess = async (userObj: UserProfile) => {
+    profileCompleteRef.current = isProfileComplete(userObj);
     setCurrentUser(userObj);
-    await loadAccountData();
+    const loadedUser = await loadAccountData();
+    if (!isProfileComplete(loadedUser)) {
+      setProfileGateNotice('Complete your display name, age, height, and weight before scanning food.');
+      setCurrentScreen('profile');
+    }
     setShowInstallPrompt(true);
   };
 
   const handleUpdateUserProfile = (updatedProfile: UserProfile) => {
+    profileCompleteRef.current = isProfileComplete(updatedProfile);
     setCurrentUser(updatedProfile);
+    if (isProfileComplete(updatedProfile)) setProfileGateNotice('');
   };
 
   const handleAddHistoryScan = (newScan: FoodAnalysis) => {
@@ -69,18 +104,26 @@ export default function App() {
   };
 
   const handleSignOut = async () => {
+    if (useMockData) {
+      setCurrentUser(MOCK_USER);
+      setHistoryList(createMockHistory());
+      setCurrentScreen('dashboard');
+      return;
+    }
     await api.signOut().catch(() => undefined);
     setHistoryList([]);
     setCurrentScreen('home');
   };
 
   const handleSelectHistoryItem = (scanItem: FoodAnalysis) => {
+    selectedScanItemRef.current = scanItem;
     setSelectedScanItem(scanItem);
   };
 
   const handleTriggerNewScanFromMenu = () => {
+    selectedScanItemRef.current = null;
     setSelectedScanItem(null); // Clear selected item to prompt uploader view
-    setCurrentScreen('ai');
+    handleNavigate('ai');
   };
 
   return (
@@ -133,6 +176,7 @@ export default function App() {
                   canInstall={canInstall}
                   installed={installed}
                   onInstall={install}
+                  scanGateNotice={profileGateNotice}
                 />
               )}
               {currentScreen === 'admin' && (

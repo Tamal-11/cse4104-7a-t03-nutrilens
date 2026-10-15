@@ -335,6 +335,22 @@ app.post("/api/v1/profile", async (c) => {
 
 app.post("/api/v1/upload-food-image", async (c) => {
   const user = c.get("user");
+  const profileSql = neon(c.env.DATABASE_URL);
+  const profileRows = await profileSql`
+    select full_name, age, height_cm, weight_kg
+    from user_profiles
+    where user_id = ${user.id}
+    limit 1
+  `;
+  const profile = profileRows[0];
+  if (
+    !profile?.full_name?.trim() ||
+    !Number.isFinite(Number(profile.age)) || Number(profile.age) < 13 || Number(profile.age) > 120 ||
+    !Number.isFinite(Number(profile.height_cm)) || Number(profile.height_cm) < 50 || Number(profile.height_cm) > 260 ||
+    !Number.isFinite(Number(profile.weight_kg)) || Number(profile.weight_kg) < 20 || Number(profile.weight_kg) > 500
+  ) {
+    return c.json({ success: false, message: "Complete your display name, age, height, and weight before scanning food." }, 403);
+  }
   const form = await c.req.formData();
   const image = form.get("image") as File | string | null;
 
@@ -489,7 +505,7 @@ app.post("/api/v1/analyze-food", async (c) => {
     const catalogRows = await sql`
       select id
       from nutrition_catalog
-      where lower(food_name) = lower(${prediction.foodName})
+      where ${prediction.isFood} and lower(food_name) = lower(${prediction.foodName})
       limit 1
     `;
     const analysisId = crypto.randomUUID();
@@ -519,7 +535,7 @@ app.post("/api/v1/analyze-food", async (c) => {
 
     return c.json({
       success: true, message: "Analysis completed.", data: {
-        analysisId, foodName: prediction.foodName, confidence: prediction.confidence,
+        analysisId, foodName: prediction.foodName, isFood: prediction.isFood, confidence: prediction.confidence,
         nutrition: prediction.nutrition, healthBenefits: healthInsights.healthBenefits,
         warnings: healthInsights.warnings, suggestions: healthInsights.suggestions,
         explanation: healthInsights.explanation, classification: healthInsights.classification,
@@ -934,6 +950,7 @@ async function validateUploadedImage(image: File, configuredMaxSize?: string) {
 
 type ModelPrediction = {
   success?: boolean;
+  isFood: boolean;
   foodName: string;
   confidence: number;
   nutrition: {
@@ -969,6 +986,8 @@ type GeminiFailure = Error & {
 
 const FOOD_ANALYSIS_INSTRUCTIONS = `Analyze this food image. Identify the primary dish and estimate nutrition for the visible portion. Return only the requested JSON. Nutrition is an estimate, not medical advice. Use confidence from 0 to 1.
 
+If the image does not clearly show food, set isFood to false, foodName to "Not food", and all nutrition values to 0. Set healthBenefits, warnings, and suggestions to empty arrays. Set explanation to "This image does not show food, so nutrition information is unavailable." If it shows food, set isFood to true.
+
 Write for an everyday person with no nutrition knowledge. Keep every response compact and easy to scan:
 - healthBenefits: exactly 2 short phrases, 3-7 words each, such as "Steady energy for your day" or "Helps you stay full". Do not use nutrition jargon by itself.
 - warnings: exactly 2 short phrases, 3-9 words each, such as "Heavy meal for weight loss" or "Watch salt if eaten often". Keep them non-alarming.
@@ -979,6 +998,7 @@ Avoid medical claims, diagnoses, acronyms, and unexplained terms. Do not promise
 const GEMINI_RESPONSE_SCHEMA = {
   type: "object",
   properties: {
+    isFood: { type: "boolean" },
     foodName: { type: "string" },
     confidence: { type: "number" },
     nutrition: {
@@ -995,7 +1015,7 @@ const GEMINI_RESPONSE_SCHEMA = {
     explanation: { type: "string", description: "One friendly 8-16 word sentence with the main practical takeaway." },
     classification: { type: "string", enum: ["Healthy", "Moderate", "Unhealthy"] },
   },
-  required: ["foodName", "confidence", "nutrition", "classification"],
+  required: ["isFood", "foodName", "confidence", "nutrition", "classification"],
 };
 
 async function analyzeWithGemini(image: ArrayBuffer, mimeType: string, apiKey: string, model?: string): Promise<ModelPrediction> {
@@ -1105,6 +1125,7 @@ function arrayBufferToBase64(buffer: ArrayBuffer) {
 }
 
 function validatePrediction(value: ModelPrediction): string | null {
+  if (typeof value.isFood !== "boolean") return "isFood must be a boolean";
   if (typeof value.foodName !== "string" || !value.foodName.trim() || value.foodName.length > 120) return "foodName is invalid";
   if (
     !Number.isFinite(value.confidence) ||

@@ -23,6 +23,7 @@ export interface MacroNutrients {
 export interface FoodAnalysis {
   id: string;
   name: string;
+  isFood: boolean;
   image: string; // url or base64 representation
   time: string;
   isHealthy: boolean;

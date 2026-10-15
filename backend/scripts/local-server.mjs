@@ -68,6 +68,8 @@ const logs = ['Local demo API started. Cloud database and R2 are not required in
 
 const FOOD_ANALYSIS_INSTRUCTIONS = `Analyze this food image. Identify the primary dish and estimate nutrition for the visible portion. Return only the requested JSON. Nutrition is an estimate, not medical advice. Use confidence from 0 to 1.
 
+If the image does not clearly show food, set isFood to false, foodName to "Not food", and all nutrition values to 0. Set healthBenefits, warnings, and suggestions to empty arrays. Set explanation to "This image does not show food, so nutrition information is unavailable." If it shows food, set isFood to true.
+
 Write for an everyday person with no nutrition knowledge. Keep every response compact and easy to scan:
 - healthBenefits: exactly 2 short phrases, 3-7 words each, such as "Steady energy for your day" or "Helps you stay full". Do not use nutrition jargon by itself.
 - warnings: exactly 2 short phrases, 3-9 words each, such as "Heavy meal for weight loss" or "Watch salt if eaten often". Keep them non-alarming.
@@ -78,6 +80,7 @@ Avoid medical claims, diagnoses, acronyms, and unexplained terms. Do not promise
 const GEMINI_RESPONSE_SCHEMA = {
   type: 'object',
   properties: {
+    isFood: { type: 'boolean' },
     foodName: { type: 'string' }, confidence: { type: 'number' },
     nutrition: { type: 'object', properties: {
       calories: { type: 'number' }, protein: { type: 'number' }, carbohydrates: { type: 'number' },
@@ -89,7 +92,7 @@ const GEMINI_RESPONSE_SCHEMA = {
     explanation: { type: 'string', description: 'One friendly 8-16 word sentence with the main practical takeaway.' },
     classification: { type: 'string', enum: ['Healthy', 'Moderate', 'Unhealthy'] },
   },
-  required: ['foodName', 'confidence', 'nutrition', 'classification'],
+  required: ['isFood', 'foodName', 'confidence', 'nutrition', 'classification'],
 };
 
 app.use(
@@ -184,6 +187,9 @@ app.post('/api/v1/profile', async (c) => {
 });
 
 app.post('/api/v1/upload-food-image', async (c) => {
+  if (!profile.fullName?.trim() || !Number.isFinite(profile.age) || profile.age < 13 || profile.age > 120 || !Number.isFinite(profile.heightCm) || profile.heightCm < 50 || profile.heightCm > 260 || !Number.isFinite(profile.weightKg) || profile.weightKg < 20 || profile.weightKg > 500) {
+    return c.json({ success: false, message: 'Complete your display name, age, height, and weight before scanning food.' }, 403);
+  }
   await mkdir(uploadDir, { recursive: true });
   const form = await c.req.formData();
   const image = form.get('image');
@@ -277,6 +283,7 @@ app.post('/api/v1/analyze-food', async (c) => {
 
   const analysis = {
     analysisId: crypto.randomUUID(),
+    isFood: prediction.isFood,
     foodName: prediction.foodName,
     confidence: prediction.confidence,
     imageUrl: image.imageUrl,
@@ -507,6 +514,7 @@ function matchesImageSignature(bytes, mimeType) {
 }
 
 function isValidPrediction(value) {
+  if (typeof value.isFood !== 'boolean') return false;
   if (!value || typeof value !== 'object' || typeof value.foodName !== 'string' || !value.foodName.trim() || value.foodName.length > 120) return false;
   if (!Number.isFinite(value.confidence) || value.confidence < 0 || value.confidence > 1) return false;
   if (!value.nutrition || !['calories', 'protein', 'carbohydrates', 'fats', 'fiber'].every((key) => Number.isFinite(value.nutrition[key]) && value.nutrition[key] >= 0)) return false;

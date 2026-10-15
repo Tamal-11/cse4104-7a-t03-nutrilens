@@ -1,6 +1,8 @@
 import type {FoodAnalysis, UserProfile} from '../types';
+import {createMockHistory} from '../data/mockData';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 const apiUrl = (value?: string | null) =>
   value?.startsWith('/') ? `${API_BASE_URL}${value}` : value || '';
 
@@ -43,6 +45,7 @@ export type ProfileResponse = {
 type AnalysisResponse = {
   analysisId: string;
   foodName: string;
+  isFood?: boolean;
   confidence: number;
   imageUrl?: string | null;
   createdAt?: string;
@@ -92,6 +95,15 @@ export const api = {
   analysis: (id: string) =>
     request<ApiEnvelope<AnalysisResponse>>(`/api/v1/analysis-history/${id}`),
   async analyzeImage(file: File): Promise<FoodAnalysis> {
+    if (USE_MOCK_DATA) {
+      const sample = createMockHistory()[0];
+      return {
+        ...sample,
+        id: `mock-upload-${Date.now()}`,
+        image: URL.createObjectURL(file),
+        time: new Date().toISOString(),
+      };
+    }
     const form = new FormData();
     form.append('image', file);
     const upload = await request<ApiEnvelope<{imageId: string; imageUrl: string | null}>>(
@@ -149,8 +161,9 @@ export function mapAnalysis(item: AnalysisResponse): FoodAnalysis {
   return {
     id: item.analysisId,
     name: item.foodName,
+    isFood: item.isFood !== false,
     image: apiUrl(item.imageUrl),
-    time: item.createdAt ? new Date(item.createdAt).toLocaleString() : 'Just now',
+    time: item.createdAt || new Date().toISOString(),
     isHealthy: (item.classification || 'Moderate') === 'Healthy',
     classification: item.classification || 'Moderate',
     macros: {
