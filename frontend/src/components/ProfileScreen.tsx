@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { Check, ChevronLeft, Loader2, User, Save, Calendar, Shield, Sparkles, LogOut, Download, Share, MoreVertical, HeartPulse } from 'lucide-react';
 import { FoodGoal, ScreenType, UserProfile } from '../types';
-import { NutriLenseLogo } from './NutriLenseLogo';
+import { NutriLensLogo } from './NutriLensLogo';
 import {api} from '../services/api';
 
 interface ProfileScreenProps {

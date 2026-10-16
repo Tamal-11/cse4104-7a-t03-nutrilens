@@ -1,18 +1,18 @@
 import React from 'react';
 
-interface NutriLenseLogoProps {
+interface NutriLensLogoProps {
   className?: string;
   size?: number; // width and height of the icon
   showText?: boolean;
   textSizeClass?: string;
 }
 
-export function NutriLenseLogo({
+export function NutriLensLogo({
   className = '',
   size = 72,
   showText = true,
   textSizeClass = 'text-2xl font-bold tracking-tight text-slate-900',
-}: NutriLenseLogoProps) {
+}: NutriLensLogoProps) {
   return (
     <div className={`flex flex-col items-center ${className}`}>
       <img
@@ -94,7 +94,7 @@ export function NutriLenseLogo({
 
       {/* Under text */}
       {showText && (
-        <span className={`${textSizeClass} mt-2`}>NutriLense</span>
+        <span className={`${textSizeClass} mt-2`}>NutriLens</span>
       )}
     </div>
   );

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { ScreenType, FoodAnalysis } from '../types';
-import { NutriLenseLogo } from './NutriLenseLogo';
+import { NutriLensLogo } from './NutriLensLogo';
 import {api} from '../services/api';
 
 interface AIInterfaceScreenProps {
@@ -130,7 +130,7 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
         
         {/* Left side Logo */}
         <div className="flex items-center gap-1 cursor-pointer mx-auto sm:mx-0" onClick={() => onNavigate('dashboard')}>
-          <NutriLenseLogo size={36} showText={true} textSizeClass="text-base font-extrabold tracking-tight text-slate-900" className="flex-row gap-1.5" />
+          <NutriLensLogo size={36} showText={true} textSizeClass="text-base font-extrabold tracking-tight text-slate-900" className="flex-row gap-1.5" />
         </div>
       </div>
 

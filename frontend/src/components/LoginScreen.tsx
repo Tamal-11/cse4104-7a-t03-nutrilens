@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { Mail, Lock, Eye, EyeOff, Sparkles } from 'lucide-react';
 import { ScreenType, UserProfile } from '../types';
 import { api } from '../services/api';
-import { NutriLenseLogo, LeafyBackgroundDecorations } from './NutriLenseLogo';
+import { NutriLensLogo, LeafyBackgroundDecorations } from './NutriLensLogo';
 
 interface LoginScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -52,8 +52,8 @@ export default function LoginScreen({ onNavigate, onLoginSuccess }: LoginScreenP
       {/* Main Login card as defined in WhatsApp Screenshots */}
       <div className="relative z-10 w-full max-w-[340px] bg-white rounded-[28px] shadow-[0_12px_36px_rgba(89,155,56,0.15)] px-6 py-8 flex flex-col border border-[#e2edd8]/50">
         
-        {/* NutriLense Camera Leaf Logo */}
-        <NutriLenseLogo 
+        {/* NutriLens Camera Leaf Logo */}
+        <NutriLensLogo
           size={84} 
           showText={true} 
           textSizeClass="text-3xl font-extrabold tracking-tight text-[#111111]"
