@@ -8,6 +8,7 @@ export const EMPTY_USER: UserProfile = {
   height: 0,
   weight: 0,
   healthConditions: [],
-  dietaryPreferences: [],
+  allergies: [],
+  foodGoal: 'Eat balanced',
   isAdmin: false,
 };

@@ -32,7 +32,8 @@ export default function LoginScreen({ onNavigate, onLoginSuccess }: LoginScreenP
         height: 0,
         weight: 0,
         healthConditions: [],
-        dietaryPreferences: [],
+        allergies: [],
+        foodGoal: 'Eat balanced',
       });
       onNavigate('ai');
     } catch (cause) {
