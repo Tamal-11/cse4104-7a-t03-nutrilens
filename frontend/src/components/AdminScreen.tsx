@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import type {AdminStats, ScreenType, UserAccount} from '../types';
 import {api} from '../services/api';
-import {NutriLenseLogo} from './NutriLenseLogo';
+import {NutriLensLogo} from './NutriLensLogo';
 
 export type AdminUpload = {
   imageId: string;
@@ -120,7 +120,7 @@ export default function AdminScreen({onNavigate}: {onNavigate: (screen: ScreenTy
     <div className="admin-shell h-full overflow-y-auto bg-[#f4f7f1] text-slate-800">
       <div className="mx-auto min-h-full w-full max-w-[1160px] px-4 pb-10 pt-4 sm:px-7 lg:px-9">
         <header className="flex items-center justify-between border-b border-[#dce5d6] pb-4">
-          <NutriLenseLogo size={36} showText textSizeClass="text-base font-extrabold text-slate-900" className="flex-row gap-2"/>
+          <NutriLensLogo size={36} showText textSizeClass="text-base font-extrabold text-slate-900" className="flex-row gap-2"/>
           <div className="flex items-center gap-2">
             <span className="hidden items-center gap-1.5 rounded-full border border-[#cfdfc7] bg-white px-3 py-1.5 text-[11px] font-semibold text-[#447532] sm:inline-flex"><span className="h-1.5 w-1.5 rounded-full bg-[#64a448]"/>Admin workspace</span>
             <button type="button" onClick={() => void load()} disabled={loading} aria-label="Refresh admin data" className="rounded-lg border border-[#dce5d6] bg-white p-2.5 text-slate-500 transition hover:text-[#427429] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#599b38] disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}/></button>

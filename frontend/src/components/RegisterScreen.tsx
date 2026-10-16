@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { User, Mail, Lock, ChevronLeft } from 'lucide-react';
 import { ScreenType, UserProfile } from '../types';
-import { NutriLenseLogo, LeafyBackgroundDecorations } from './NutriLenseLogo';
+import { NutriLensLogo, LeafyBackgroundDecorations } from './NutriLensLogo';
 import {api} from '../services/api';
 
 interface RegisterScreenProps {
@@ -51,7 +51,8 @@ export default function RegisterScreen({ onNavigate, onRegisterSuccess }: Regist
         height: 0,
         weight: 0,
         healthConditions: [],
-        dietaryPreferences: [],
+        allergies: [],
+        foodGoal: 'Eat balanced',
       });
       onNavigate('ai');
     } catch (cause) {
@@ -70,8 +71,8 @@ export default function RegisterScreen({ onNavigate, onRegisterSuccess }: Regist
       {/* Main card matching login design */}
       <div className="relative z-10 w-full max-w-[340px] bg-white rounded-[28px] shadow-[0_12px_36px_rgba(89,155,56,0.15)] px-6 py-6 flex flex-col border border-[#e2edd8]/50">
         
-        {/* NutriLense Camera Leaf Logo */}
-        <NutriLenseLogo 
+        {/* NutriLens Camera Leaf Logo */}
+        <NutriLensLogo
           size={72} 
           showText={true} 
           textSizeClass="text-2xl font-extrabold tracking-tight text-[#111111]"
@@ -153,7 +154,7 @@ export default function RegisterScreen({ onNavigate, onRegisterSuccess }: Regist
           {/* Terms checkbox */}
           <div className="text-[10px] text-slate-400 flex items-start gap-1.5 mt-0.5 select-none leading-normal">
             <input type="checkbox" className="mt-0.5 rounded text-[#599b38] accent-[#599b38]" required defaultChecked />
-            <span>I agree to NutriLense nutrition auditing policies</span>
+            <span>I agree to NutriLens nutrition auditing policies</span>
           </div>
 
           {/* Register button: Solid black pill */}

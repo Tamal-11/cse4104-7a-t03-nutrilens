@@ -1,4 +1,4 @@
-import type {FoodAnalysis, UserProfile} from '../types';
+import type {FoodAnalysis, FoodGoal, UserProfile} from '../types';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 const apiUrl = (value?: string | null) =>
@@ -37,7 +37,8 @@ export type ProfileResponse = {
   heightCm: number | null;
   weightKg: number | null;
   healthConditions: string[];
-  dietaryPreferences: string[];
+  allergies: string[];
+  foodGoal: FoodGoal | null;
   isAdmin: boolean;
 };
 type AnalysisResponse = {
@@ -60,6 +61,7 @@ type AnalysisResponse = {
   suggestions?: string[];
   explanation?: string;
   classification?: 'Healthy' | 'Moderate' | 'Unhealthy';
+  recommendation?: 'Eat' | 'Limit' | 'Avoid';
 };
 
 export const api = {
@@ -86,7 +88,8 @@ export const api = {
         heightCm: profile.height,
         weightKg: profile.weight,
         healthConditions: profile.healthConditions,
-        dietaryPreferences: profile.dietaryPreferences,
+        allergies: profile.allergies,
+        foodGoal: profile.foodGoal,
       }),
     }),
   history: () => request<ApiEnvelope<AnalysisResponse[]>>('/api/v1/analysis-history'),
@@ -138,7 +141,8 @@ export function mapProfile(profile: ProfileResponse): UserProfile {
     height: profile.heightCm ?? 0,
     weight: profile.weightKg ?? 0,
     healthConditions: profile.healthConditions,
-    dietaryPreferences: profile.dietaryPreferences,
+    allergies: profile.allergies ?? [],
+    foodGoal: profile.foodGoal || 'Eat balanced',
     isAdmin: profile.isAdmin,
   };
 }
@@ -155,6 +159,7 @@ export function mapAnalysis(item: AnalysisResponse): FoodAnalysis {
     time: item.createdAt || new Date().toISOString(),
     isHealthy: (item.classification || 'Moderate') === 'Healthy',
     classification: item.classification || 'Moderate',
+    recommendation: item.recommendation,
     macros: {
       calories: nutrition.calories,
       protein: nutrition.protein,

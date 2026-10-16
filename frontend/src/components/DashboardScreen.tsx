@@ -1,7 +1,7 @@
 import { Clipboard, Flame, Soup, Clock, Shield, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { ScreenType, UserProfile, FoodAnalysis } from '../types';
-import { NutriLenseLogo } from './NutriLenseLogo';
+import { NutriLensLogo } from './NutriLensLogo';
 
 interface DashboardScreenProps {
   user: UserProfile;
@@ -61,7 +61,7 @@ export default function DashboardScreen({ user, history, onNavigate, onSelectSca
         
         {/* Left side: Logo */}
         <div className="flex items-center gap-1 cursor-pointer mx-auto sm:mx-0" onClick={() => onNavigate('home')}>
-          <NutriLenseLogo size={36} showText={true} textSizeClass="text-base font-extrabold tracking-tight text-slate-900" className="flex-row gap-1.5" />
+          <NutriLensLogo size={36} showText={true} textSizeClass="text-base font-extrabold tracking-tight text-slate-900" className="flex-row gap-1.5" />
         </div>
         {user.isAdmin && (
           <button
