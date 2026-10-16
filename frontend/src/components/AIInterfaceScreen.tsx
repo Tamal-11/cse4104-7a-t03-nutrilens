@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { ScreenType, FoodAnalysis } from '../types';
-import { NutriLenseLogo } from './NutriLenseLogo';
+import { NutriLensLogo } from './NutriLensLogo';
 import {api} from '../services/api';
 
 interface AIInterfaceScreenProps {
@@ -17,7 +17,6 @@ interface AIInterfaceScreenProps {
 
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
-
 export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedScan }: AIInterfaceScreenProps) {
   const [scanState, setScanState] = useState<'upload' | 'scanning' | 'results'>(
     selectedScan ? 'results' : 'upload'
@@ -131,7 +130,7 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
         
         {/* Left side Logo */}
         <div className="flex items-center gap-1 cursor-pointer mx-auto sm:mx-0" onClick={() => onNavigate('dashboard')}>
-          <NutriLenseLogo size={36} showText={true} textSizeClass="text-base font-extrabold tracking-tight text-slate-900" className="flex-row gap-1.5" />
+          <NutriLensLogo size={36} showText={true} textSizeClass="text-base font-extrabold tracking-tight text-slate-900" className="flex-row gap-1.5" />
         </div>
       </div>
 
@@ -263,6 +262,7 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
                 <div className="flex flex-col justify-center pr-3 border-r border-[#d4ded0]">
                   <span className="text-[10px] text-slate-400 font-bold tracking-tight uppercase">Detected Food:</span>
                   <span className="text-[#3c761e] text-xl font-black leading-tight mt-1 select-all">{currentFood.name}</span>
+                  {currentFood.recommendation && <span className={`mt-2 w-fit rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase ${currentFood.recommendation === 'Avoid' ? 'bg-rose-100 text-rose-800' : currentFood.recommendation === 'Limit' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>{currentFood.recommendation} for your goal</span>}
                 </div>
 
                 {/* Right Column: Key macro stats listing with custom icons next to them */}
@@ -384,7 +384,7 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
                     <div className="w-5 h-5 rounded-full bg-[#e8f4e2] flex items-center justify-center text-[#529031]">
                       <Check className="w-3 h-3 stroke-[3]" />
                     </div>
-                    <span className="font-extrabold uppercase tracking-wider">Pros</span>
+                    <span className="font-extrabold uppercase tracking-wider">Good to know</span>
                   </div>
 
                   {/* Items */}
@@ -406,7 +406,7 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
                     <div className="w-5 h-5 rounded-full bg-[#faeeee] flex items-center justify-center text-[#cc3a3a]">
                       <X className="w-3 h-3 stroke-[3]" />
                     </div>
-                    <span className="font-extrabold uppercase tracking-wider">Cons</span>
+                    <span className="font-extrabold uppercase tracking-wider">Things to consider</span>
                   </div>
 
                   {/* Items */}
@@ -426,7 +426,7 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
                 <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100/80 flex gap-3 shadow-xs">
                   <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div className="text-sm leading-relaxed">
-                    <span className="font-extrabold text-amber-800 block uppercase tracking-wide text-xs mb-1">AI Dietitian Warnings & Suggestions</span>
+                    <span className="font-extrabold text-amber-800 block uppercase tracking-wide text-xs mb-1">What this means for you</span>
                     <ul className="list-disc pl-3 mt-1.5 space-y-1.5 text-slate-600 font-semibold">
                       {currentFood.warnings.map((warn, i) => (
                         <li key={i} className="text-xs">{warn}</li>
@@ -441,7 +441,7 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
 
               {/* AI Interaction statement explanation */}
               {currentFood.isFood && <div className="bg-white p-4.5 rounded-2xl border border-[#e2edd8] text-sm leading-relaxed text-slate-600 font-semibold shadow-xs">
-                <span className="font-extrabold text-slate-800 block mb-1 uppercase tracking-wider text-xs text-[#426a2e]">Meal Synthesis Summary</span>
+                <span className="font-extrabold text-slate-800 block mb-1 uppercase tracking-wider text-xs text-[#426a2e]">Simple meal advice</span>
                 <p className="mt-1 text-slate-600 font-medium">{currentFood.explanation}</p>
               </div>}
 

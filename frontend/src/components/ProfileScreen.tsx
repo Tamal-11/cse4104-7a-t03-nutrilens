@@ -1,8 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { Check, ChevronLeft, Loader2, User, Save, Calendar, Shield, Sparkles, LogOut, Download, Share, MoreVertical } from 'lucide-react';
-import { ScreenType, UserProfile } from '../types';
-import { NutriLenseLogo } from './NutriLenseLogo';
+import { Check, ChevronLeft, Loader2, User, Save, Calendar, Shield, Sparkles, LogOut, Download, Share, MoreVertical, HeartPulse } from 'lucide-react';
+import { FoodGoal, ScreenType, UserProfile } from '../types';
+import { NutriLensLogo } from './NutriLensLogo';
 import {api} from '../services/api';
 
 interface ProfileScreenProps {
@@ -16,22 +16,26 @@ interface ProfileScreenProps {
   scanGateNotice?: string;
 }
 
-const AVAILABLE_DIETS = [
-  'Eat Balanced',
-  'More Protein',
-  'Weight Loss',
-  'Less Sugar',
-  'Less Carbs',
-  'Vegetarian',
-];
+const AVAILABLE_FOOD_GOALS: FoodGoal[] = ['Lose weight', 'Gain weight', 'Eat balanced'];
 const AVAILABLE_CONDITIONS = [
   'None',
-  'Baby',
   'Pregnant',
   'Diabetes',
   'High Blood Pressure',
   'Heart Problem',
   'Milk Allergy',
+];
+const AVAILABLE_ALLERGIES = [
+  'Shrimp / Prawns (Chingri)',
+  'Crab (Kakra)',
+  'Fish (Ilish, Tuna, etc.)',
+  'Eggs (especially egg whites)',
+  "Milk (cow's milk)",
+  'Peanuts (China Badam)',
+  'Tree nuts (Cashews, Almonds, Walnuts)',
+  'Wheat (Atta, Bread, Roti)',
+  'Soybeans (Soy milk, Tofu)',
+  'Sesame seeds (Til)',
 ];
 
 export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOut, canInstall, installed, onInstall, scanGateNotice }: ProfileScreenProps) {
@@ -46,8 +50,9 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
   const [height, setHeight] = useState(String(user.height || ''));
   const [weight, setWeight] = useState(String(user.weight || ''));
   
-  const [selectedDiets, setSelectedDiets] = useState<string[]>(user.dietaryPreferences);
+  const [foodGoal, setFoodGoal] = useState<FoodGoal>(user.foodGoal || 'Eat balanced');
   const [selectedConditions, setSelectedConditions] = useState<string[]>(user.healthConditions);
+  const [selectedAllergies, setSelectedAllergies] = useState<string[]>(user.allergies);
   const [showSavedToast, setShowSavedToast] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showInstallHelp, setShowInstallHelp] = useState(false);
@@ -101,8 +106,9 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
       gender,
       height: Number(height),
       weight: Number(weight),
-      dietaryPreferences: selectedDiets,
+      foodGoal,
       healthConditions: selectedConditions,
+      allergies: selectedAllergies,
       isAdmin: user.isAdmin,
     };
 
@@ -118,16 +124,6 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
     }
   };
 
-  const toggleDiet = (diet: string) => {
-    setSelectedDiets(prev => {
-      if (prev.includes(diet)) {
-        return prev.filter(d => d !== diet);
-      } else {
-        return [...prev, diet];
-      }
-    });
-  };
-
   const toggleCondition = (condition: string) => {
     if (condition === 'None') {
       setSelectedConditions([]);
@@ -140,6 +136,12 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
         return [...prev, condition];
       }
     });
+  };
+
+  const toggleAllergy = (allergy: string) => {
+    setSelectedAllergies((current) => current.includes(allergy)
+      ? current.filter((item) => item !== allergy)
+      : [...current, allergy]);
   };
 
   return (
@@ -309,26 +311,15 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
             <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#558e38] uppercase tracking-wider mb-1">
               <Sparkles className="w-4 h-4" /> Food Goals
             </span>
-            <div className="flex flex-wrap gap-1.5">
-              {AVAILABLE_DIETS.map(diet => {
-                const isSel = selectedDiets.includes(diet);
-                return (
-                  <button
-                    key={diet}
-                    type="button"
-                    aria-pressed={isSel}
-                    onClick={() => toggleDiet(diet)}
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-extrabold border transition cursor-pointer ${
-                      isSel 
-                        ? 'bg-[#599b38]/10 border-[#599b38]/30 text-[#3a6823]' 
-                        : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                    }`}
-                  >
-                    {diet}
-                  </button>
-                );
-              })}
-            </div>
+            <label htmlFor="profile-food-goal-input" className="sr-only">Food goal</label>
+            <select
+              id="profile-food-goal-input"
+              value={foodGoal}
+              onChange={e => setFoodGoal(e.target.value as FoodGoal)}
+              className="w-full px-3 py-2.5 bg-[#fafff6] border border-[#e3edd9] rounded-xl text-xs text-slate-800 font-bold focus:ring-1 focus:ring-[#519031] focus:border-[#519031] outline-none"
+            >
+              {AVAILABLE_FOOD_GOALS.map(goal => <option key={goal} value={goal}>{goal}</option>)}
+            </select>
           </div>
 
           {/* Medical parameters card */}
@@ -347,11 +338,39 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
                     onClick={() => toggleCondition(cond)}
                     className={`px-3 py-1.5 rounded-xl text-[10px] font-extrabold border transition cursor-pointer ${
                       isSel 
-                        ? 'bg-rose-55 hover:bg-rose-100 bg-rose-50 border-rose-300 text-rose-800' 
+                        ? 'bg-rose-55 hover:bg-rose-100 bg-rose-50 border-rose-300 text-rose-800'
                         : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
                     }`}
                   >
                     {cond}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Allergy parameters card */}
+          <div className="bg-white rounded-[24px] border border-[#e2edd8] p-4.5 space-y-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#b54a4a] uppercase tracking-wider mb-1">
+              <HeartPulse className="w-4 h-4" /> Allergies
+            </span>
+            <p className="text-[10px] text-slate-500">Select any ingredients you are allergic to.</p>
+            <div className="flex flex-wrap gap-1.5">
+              {AVAILABLE_ALLERGIES.map(allergy => {
+                const isSel = selectedAllergies.includes(allergy);
+                return (
+                  <button
+                    key={allergy}
+                    type="button"
+                    aria-pressed={isSel}
+                    onClick={() => toggleAllergy(allergy)}
+                    className={`px-3 py-1.5 rounded-xl text-[10px] font-extrabold border transition cursor-pointer ${
+                      isSel
+                        ? 'bg-rose-50 border-rose-300 text-rose-800'
+                        : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                    }`}
+                  >
+                    {allergy}
                   </button>
                 );
               })}

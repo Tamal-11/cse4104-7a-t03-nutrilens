@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { ScreenType } from '../types';
-import { NutriLenseLogo, LeafyBackgroundDecorations } from './NutriLenseLogo';
+import { NutriLensLogo, LeafyBackgroundDecorations } from './NutriLensLogo';
 
 interface HomeScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -24,7 +24,7 @@ export default function HomeScreen({ onNavigate }: HomeScreenProps) {
           className="flex flex-col items-center"
         >
           {/* Main big logo matching the mockups exactly */}
-          <NutriLenseLogo 
+          <NutriLensLogo
             size={180} 
             showText={true} 
             textSizeClass="text-5xl font-extrabold tracking-tight text-neutral-900 mt-5 select-none"

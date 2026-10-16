@@ -1,4 +1,5 @@
 export type ScreenType = 'home' | 'login' | 'register' | 'dashboard' | 'ai' | 'profile' | 'admin';
+export type FoodGoal = 'Lose weight' | 'Gain weight' | 'Eat balanced';
 
 export interface UserProfile {
   name: string;
@@ -8,7 +9,8 @@ export interface UserProfile {
   height: number; // in cm
   weight: number; // in kg
   healthConditions: string[];
-  dietaryPreferences: string[];
+  allergies: string[];
+  foodGoal: FoodGoal;
   isAdmin?: boolean;
 }
 
@@ -28,6 +30,7 @@ export interface FoodAnalysis {
   time: string;
   isHealthy: boolean;
   classification: 'Healthy' | 'Moderate' | 'Unhealthy';
+  recommendation?: 'Eat' | 'Limit' | 'Avoid';
   macros: MacroNutrients;
   servingSize: string;
   pros: string[];

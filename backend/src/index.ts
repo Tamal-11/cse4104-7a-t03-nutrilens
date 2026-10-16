@@ -159,7 +159,13 @@ const authRoutes: Record<string, string> = {
 };
 
 app.all("/api/auth/*", async (c) => {
-  const rateLimitResponse = await enforceAuthRateLimit(c);
+  // Session checks and sign-outs are read/cleanup operations that browsers call
+  // during normal navigation. Throttle only credential-changing auth attempts.
+  const rateLimitResponse =
+    c.req.method === "POST" &&
+    ["/api/auth/sign-up", "/api/auth/sign-in"].includes(c.req.path)
+      ? await enforceAuthRateLimit(c)
+      : null;
   if (rateLimitResponse) return rateLimitResponse;
   if (!c.env.NEON_AUTH_URL) {
     return c.json(
@@ -190,7 +196,10 @@ app.all("/api/auth/*", async (c) => {
 
   headers.delete("set-cookie");
   for (const cookie of cookies) {
-    headers.append("set-cookie", cookie.replace(/;\s*Domain=[^;]+/gi, ""));
+    headers.append(
+      "set-cookie",
+      normalizeAuthCookie(cookie, new URL(c.req.url).protocol === "https:"),
+    );
   }
 
   const location = headers.get("location");
@@ -219,6 +228,25 @@ function getSetCookies(headers: Headers): string[] {
     cookieHeaders.getAll?.("Set-Cookie") ??
     (headers.get("Set-Cookie") ? [headers.get("Set-Cookie")!] : [])
   );
+}
+
+function normalizeAuthCookie(cookie: string, crossSite: boolean) {
+  const attributes = cookie
+    .split(";")
+    .map((attribute) => attribute.trim())
+    .filter((attribute) => attribute && !/^domain=/i.test(attribute));
+
+  if (crossSite) {
+    const sameSiteIndex = attributes.findIndex((attribute) => /^samesite=/i.test(attribute));
+    if (sameSiteIndex >= 0) attributes[sameSiteIndex] = "SameSite=None";
+    else attributes.push("SameSite=None");
+
+    if (!attributes.some((attribute) => /^secure$/i.test(attribute))) {
+      attributes.push("Secure");
+    }
+  }
+
+  return attributes.join("; ");
 }
 
 app.use("/api/v1/*", async (c, next) => {
@@ -254,7 +282,8 @@ app.get("/api/v1/profile", async (c) => {
       height_cm,
       weight_kg,
       health_conditions,
-      dietary_preferences,
+      allergies,
+      food_goal,
       created_at,
       updated_at
     from user_profiles
@@ -278,7 +307,8 @@ app.get("/api/v1/profile", async (c) => {
       heightCm: profile.height_cm === null ? null : Number(profile.height_cm),
       weightKg: profile.weight_kg === null ? null : Number(profile.weight_kg),
       healthConditions: profile.health_conditions ?? [],
-      dietaryPreferences: profile.dietary_preferences ?? [],
+      allergies: profile.allergies ?? [],
+      foodGoal: profile.food_goal ?? "Eat balanced",
       isAdmin: isAdmin(user),
       createdAt: profile.created_at,
       updatedAt: profile.updated_at,
@@ -305,7 +335,8 @@ app.post("/api/v1/profile", async (c) => {
       height_cm,
       weight_kg
       , health_conditions
-      , dietary_preferences
+      , allergies
+      , food_goal
     )
     values (
       ${user.id},
@@ -316,7 +347,8 @@ app.post("/api/v1/profile", async (c) => {
       ${body.heightCm ?? null},
       ${body.weightKg ?? null}
       , ${JSON.stringify(body.healthConditions ?? [])}
-      , ${JSON.stringify(body.dietaryPreferences ?? [])}
+      , ${JSON.stringify(body.allergies ?? [])}
+      , ${body.foodGoal}
     )
     on conflict (user_id) do update
     set
@@ -327,7 +359,8 @@ app.post("/api/v1/profile", async (c) => {
       height_cm = excluded.height_cm,
       weight_kg = excluded.weight_kg
       , health_conditions = excluded.health_conditions
-      , dietary_preferences = excluded.dietary_preferences
+      , allergies = excluded.allergies
+      , food_goal = excluded.food_goal
   `;
 
   return c.json({ success: true, message: "Profile updated successfully." });
@@ -447,13 +480,15 @@ app.post("/api/v1/analyze-food", async (c) => {
   const body = parsed.value;
 
   const sql = neon(c.env.DATABASE_URL);
-  const imageRows = await sql`
+  const [imageRows, profileRows] = await Promise.all([sql`
     select id, object_key, file_name, mime_type, image_url
     from food_images
     where id = ${body.imageId}
       and user_id = ${user.id}
     limit 1
-  `;
+  `, sql`
+    select food_goal, allergies from user_profiles where user_id = ${user.id} limit 1
+  `]);
 
   if (imageRows.length === 0) {
     return c.json(
@@ -484,11 +519,15 @@ app.post("/api/v1/analyze-food", async (c) => {
 
   let geminiSucceeded = false;
   try {
+    const profile = profileRows[0];
+    const foodGoal = profile?.food_goal ?? "Eat balanced";
+    const allergies = Array.isArray(profile?.allergies) ? profile.allergies.filter((item): item is string => typeof item === "string") : [];
     const prediction = await analyzeWithGeminiKeyFallback(
       await storedImage.arrayBuffer(),
       imageRows[0].mime_type,
       geminiApiKeys,
       geminiModel,
+      { foodGoal, allergies },
     );
     const modelValidationError = validatePrediction(prediction);
     if (modelValidationError) {
@@ -512,10 +551,11 @@ app.post("/api/v1/analyze-food", async (c) => {
     const resultId = crypto.randomUUID();
     const healthInsights = {
       healthBenefits: prediction.healthBenefits ?? [],
-      warnings: prediction.warnings ?? [],
+      warnings: mergeAllergyWarnings(prediction.warnings ?? [], findMatchingAllergies(prediction.foodName, allergies)),
       suggestions: prediction.suggestions ?? [],
       explanation: prediction.explanation ?? "",
       classification: prediction.classification,
+      recommendation: prediction.recommendation ?? "Limit",
     };
 
     await sql`
@@ -539,6 +579,7 @@ app.post("/api/v1/analyze-food", async (c) => {
         nutrition: prediction.nutrition, healthBenefits: healthInsights.healthBenefits,
         warnings: healthInsights.warnings, suggestions: healthInsights.suggestions,
         explanation: healthInsights.explanation, classification: healthInsights.classification,
+        recommendation: findMatchingAllergies(prediction.foodName, allergies).length ? "Avoid" : prediction.recommendation ?? "Limit",
         imageUrl: imageRows[0].image_url,
       },
     });
@@ -589,6 +630,7 @@ app.get("/api/v1/analysis-history", async (c) => {
       suggestions: row.health_insights?.suggestions ?? [],
       explanation: row.health_insights?.explanation ?? "",
       classification: row.health_insights?.classification ?? "Moderate",
+      recommendation: row.health_insights?.recommendation ?? "Limit",
     })),
   });
 });
@@ -634,6 +676,7 @@ app.get("/api/v1/analysis-history/:analysisId", async (c) => {
       suggestions: insights.suggestions ?? [],
       explanation: insights.explanation ?? "",
       classification: insights.classification ?? "Moderate",
+      recommendation: insights.recommendation ?? "Limit",
       imageUrl: row.image_url,
       createdAt: row.created_at,
     },
@@ -966,6 +1009,7 @@ type ModelPrediction = {
   suggestions?: string[];
   explanation?: string;
   classification: "Healthy" | "Moderate" | "Unhealthy";
+  recommendation?: "Eat" | "Limit" | "Avoid";
   modelName?: string;
   modelVersion?: string;
   topPredictions?: Array<{
@@ -988,11 +1032,11 @@ const FOOD_ANALYSIS_INSTRUCTIONS = `Analyze this food image. Identify the primar
 
 If the image does not clearly show food, set isFood to false, foodName to "Not food", and all nutrition values to 0. Set healthBenefits, warnings, and suggestions to empty arrays. Set explanation to "This image does not show food, so nutrition information is unavailable." If it shows food, set isFood to true.
 
-Write for an everyday person with no nutrition knowledge. Keep every response compact and easy to scan:
-- healthBenefits: exactly 2 short phrases, 3-7 words each, such as "Steady energy for your day" or "Helps you stay full". Do not use nutrition jargon by itself.
-- warnings: exactly 2 short phrases, 3-9 words each, such as "Heavy meal for weight loss" or "Watch salt if eaten often". Keep them non-alarming.
-- suggestions: exactly 2 short action phrases, 3-8 words each, such as "Add a side of vegetables" or "Choose water with this meal".
-- explanation: one friendly sentence of 8-16 words. Say the main practical takeaway only.
+Write the lower guidance for an everyday person with no nutrition knowledge. Do not mention protein, carbohydrates, fats, calories, macros, or nutrition jargon in healthBenefits, warnings, suggestions, or explanation. Explain practical effects in familiar terms (for example, "May keep you full longer", "Quite oily, so keep the portion small", "Add vegetables to balance the meal").
+- healthBenefits: exactly 2 simple, concrete benefits, 3-12 words each.
+- warnings: exactly 2 clear, non-alarming cautions, 3-16 words each.
+- suggestions: exactly 2 practical actions, 3-12 words each.
+- explanation: one friendly sentence, 8-20 words, giving the main takeaway for this user's goal.
 Avoid medical claims, diagnoses, acronyms, and unexplained terms. Do not promise weight loss or muscle gain; use supportive wording such as "can help support".`;
 
 const GEMINI_RESPONSE_SCHEMA = {
@@ -1014,15 +1058,17 @@ const GEMINI_RESPONSE_SCHEMA = {
     suggestions: { type: "array", description: "Exactly 2 short, practical action phrases, 3-8 words each.", items: { type: "string" } },
     explanation: { type: "string", description: "One friendly 8-16 word sentence with the main practical takeaway." },
     classification: { type: "string", enum: ["Healthy", "Moderate", "Unhealthy"] },
+    recommendation: { type: "string", enum: ["Eat", "Limit", "Avoid"] },
   },
-  required: ["isFood", "foodName", "confidence", "nutrition", "classification"],
+  required: ["isFood", "foodName", "confidence", "nutrition", "classification", "recommendation"],
 };
 
-async function analyzeWithGemini(image: ArrayBuffer, mimeType: string, apiKey: string, model?: string): Promise<ModelPrediction> {
+async function analyzeWithGemini(image: ArrayBuffer, mimeType: string, apiKey: string, model?: string, profile?: { foodGoal: string; allergies: string[] }): Promise<ModelPrediction> {
   const selectedModel = model?.trim() || "gemini-flash-lite-latest";
+  const profileInstructions = profile ? `\n\nUser food goal: ${profile.foodGoal}. Base your recommendation on this goal. For "Lose weight", advise limiting calorie-dense or high-fat foods when appropriate; for "Gain weight", suggest energy-dense nutritious choices when appropriate; for "Eat balanced", consider overall balance. Set recommendation to Eat, Limit, or Avoid, whichever best fits the goal, and explain briefly. User-reported allergies: ${profile.allergies.length ? profile.allergies.join(", ") : "none reported"}. If the identified food or clearly visible ingredients match a reported allergy, set recommendation to Avoid and add a direct warning naming it. Do not assume hidden ingredients that cannot be identified.` : "";
   const requestBody = JSON.stringify({
     contents: [{ parts: [
-      { text: FOOD_ANALYSIS_INSTRUCTIONS },
+      { text: FOOD_ANALYSIS_INSTRUCTIONS + profileInstructions },
       { inlineData: { mimeType, data: arrayBufferToBase64(image) } },
     ] }],
     generationConfig: {
@@ -1082,6 +1128,29 @@ async function analyzeWithGemini(image: ArrayBuffer, mimeType: string, apiKey: s
 
 function isRetryableGeminiStatus(status: number) {
   return status === 408 || status === 429 || status >= 500;
+}
+
+function findMatchingAllergies(foodName: string, allergies: string[]) {
+  const food = foodName.toLowerCase();
+  const aliases: Record<string, string[]> = {
+    "Shrimp / Prawns (Chingri)": ["shrimp", "prawn", "chingri"],
+    "Crab (Kakra)": ["crab", "kakra"],
+    "Fish (Ilish, Tuna, etc.)": ["fish", "ilish", "hilsa", "tuna"],
+    "Eggs (especially egg whites)": ["egg", "omelet", "omelette"],
+    "Milk (cow's milk)": ["milk", "dairy", "cream", "cheese", "yogurt", "curd", "paneer", "butter", "ghee"],
+    "Peanuts (China Badam)": ["peanut", "groundnut", "chinabadam"],
+    "Tree nuts (Cashews, Almonds, Walnuts)": ["cashew", "almond", "walnut", "pistachio", "hazelnut", "tree nut"],
+    "Wheat (Atta, Bread, Roti)": ["wheat", "atta", "bread", "roti", "paratha", "flour"],
+    "Soybeans (Soy milk, Tofu)": ["soy", "soya", "tofu"],
+    "Sesame seeds (Til)": ["sesame", "tahini", "til"],
+  };
+  return allergies.filter((allergy) => (aliases[allergy] ?? []).some((alias) => food.includes(alias)));
+}
+
+function mergeAllergyWarnings(warnings: string[], matches: string[]) {
+  if (matches.length === 0) return warnings;
+  const warning = `Possible ${matches.join(", ")} allergen in this food. Avoid it if allergic.`;
+  return [warning, ...warnings.filter((item) => !/allerg/i.test(item))].slice(0, 10);
 }
 
 function isGeminiQuotaLimit(status: number, responseBody: string) {
@@ -1168,7 +1237,8 @@ type ProfileInput = {
   heightCm?: number;
   weightKg?: number;
   healthConditions?: string[];
-  dietaryPreferences?: string[];
+  allergies?: string[];
+  foodGoal?: "Lose weight" | "Gain weight" | "Eat balanced";
 };
 
 function validationError(c: { json: (body: object, status: 400) => Response }, message: string) {
@@ -1225,7 +1295,7 @@ async function parseJsonObject(request: Request): Promise<ParseResult<Record<str
 async function parseProfileBody(request: Request): Promise<ParseResult<ProfileInput>> {
   const parsed = await parseJsonObject(request);
   if (!parsed.ok) return parsed;
-  const allowed = new Set(["fullName", "age", "gender", "heightCm", "weightKg", "healthConditions", "dietaryPreferences"]);
+  const allowed = new Set(["fullName", "age", "gender", "heightCm", "weightKg", "healthConditions", "allergies", "foodGoal"]);
   if (Object.keys(parsed.value).some((key) => !allowed.has(key))) return { ok: false, message: "Request contains an unsupported field." };
   const value = parsed.value;
   if (Object.keys(value).length === 0) return { ok: false, message: "Request body must not be empty." };
@@ -1234,10 +1304,10 @@ async function parseProfileBody(request: Request): Promise<ParseResult<ProfileIn
   if (value.gender !== undefined && value.gender !== "Male" && value.gender !== "Female" && value.gender !== "Other") return { ok: false, message: "gender is invalid." };
   if (value.heightCm !== undefined && (!isNumberInRange(value.heightCm, 30, 300))) return { ok: false, message: "heightCm must be a number between 30 and 300." };
   if (value.weightKg !== undefined && (!isNumberInRange(value.weightKg, 2, 500))) return { ok: false, message: "weightKg must be a number between 2 and 500." };
-  for (const field of ["healthConditions", "dietaryPreferences"] as const) {
-    if (value[field] !== undefined && !isStringArray(value[field], 20, 100)) return { ok: false, message: `${field} must contain at most 20 strings of 100 characters or fewer.` };
-  }
-  return { ok: true, value: value as ProfileInput };
+  if (value.healthConditions !== undefined && !isStringArray(value.healthConditions, 20, 100)) return { ok: false, message: "healthConditions must contain at most 20 strings of 100 characters or fewer." };
+  if (value.allergies !== undefined && (!isStringArray(value.allergies, 20, 100) || value.allergies.some((allergy) => !["Shrimp / Prawns (Chingri)", "Crab (Kakra)", "Fish (Ilish, Tuna, etc.)", "Eggs (especially egg whites)", "Milk (cow's milk)", "Peanuts (China Badam)", "Tree nuts (Cashews, Almonds, Walnuts)", "Wheat (Atta, Bread, Roti)", "Soybeans (Soy milk, Tofu)", "Sesame seeds (Til)"].includes(allergy)))) return { ok: false, message: "allergies contains an unsupported allergen." };
+  if (value.foodGoal !== undefined && !["Lose weight", "Gain weight", "Eat balanced"].includes(value.foodGoal as string)) return { ok: false, message: "foodGoal must be Lose weight, Gain weight, or Eat balanced." };
+  return { ok: true, value: { ...value, foodGoal: (value.foodGoal ?? "Eat balanced") as ProfileInput["foodGoal"] } as ProfileInput };
 }
 
 async function parseGeminiSettingsBody(request: Request): Promise<ParseResult<GeminiSettingsInput>> {
@@ -1275,13 +1345,14 @@ async function analyzeWithGeminiKeyFallback(
   mimeType: string,
   keys: string[],
   model: string,
+  profile?: { foodGoal: string; allergies: string[] },
 ) {
   let lastQuotaError: GeminiFailure | null = null;
   for (let keyAttempt = 0; keyAttempt < keys.length; keyAttempt += 1) {
     const keyIndex = geminiKeyCursor % keys.length;
     geminiKeyCursor = (geminiKeyCursor + 1) % keys.length;
     try {
-      return await analyzeWithGemini(image, mimeType, keys[keyIndex], model);
+      return await analyzeWithGemini(image, mimeType, keys[keyIndex], model, profile);
     } catch (error) {
       const failure = toGeminiFailure(error);
       if (!failure.quotaLimited) throw error;
