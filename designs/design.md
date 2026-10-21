@@ -1,517 +1,71 @@
-# NutriLens Design Document
+# NutriLens Product Design Reference
 
-**Project:** NutriLens  
-**Course:** CSE 4104 — Software Development III  
-**Team:** CSE4104-7A-T03  
-**Prepared from:** UI/UX Design and Development Planning document  
+This document describes the implemented NutriLens experience. Original visual assets in `designs/assets/` remain useful as design references, but they do not define the current API, storage, or AI implementation.
 
----
+## Product principles
 
-## 1. Product Vision
-
-NutriLens is an AI-powered nutrition analysis web application. Its main purpose is to help users understand the nutritional value and health impact of food by uploading a food image. Instead of manually searching for food items and entering calories, users can take or upload a meal photo and receive instant nutrition insights.
-
-The product focuses on three major user needs:
-
-1. Fast food recognition from an image.
-2. Clear calorie and macro-nutrient analysis.
-3. Health warnings and personalized dietary recommendations.
-
----
-
-## 2. Design Goals
-
-| Goal | Design Meaning |
+| Principle | Applied design decision |
 |---|---|
-| Simple | Users should be able to upload food images without confusion |
-| Mobile-first | The interface should work smoothly on mobile screens |
-| Visual | Nutrition data should be shown with cards, charts, and icons |
-| Trustworthy | Result pages should clearly show detected food, calories, macros, and warnings |
-| Personalized | Profile data should improve recommendations and risk alerts |
-| Fast | The user should receive results quickly after uploading an image |
+| Clear expectations | Results are labelled as visible-portion estimates and not medical advice. |
+| Guided first scan | The profile requires a display name, age, height, and weight before a new upload. |
+| Plain language | Benefits, cautions, suggestions, and the summary avoid unnecessary nutrition jargon. |
+| Useful uncertainty | The UI shows a dedicated no-food state rather than inventing a food result. |
+| Private by default | Users view only their own images/history; administrator review is role-protected. |
+| Mobile-first | Core navigation and actions remain usable on a narrow screen. |
 
----
-
-## 3. Original UI Screens from Document
-
-The following screens were extracted from the submitted UI/UX document and included here as design references.
-
-### 3.1 Home Page
-
-![Home Page](assets/home_page.jpg)
-
-### 3.2 Login Page
-
-![Login Page](assets/login_page.jpg)
-
-### 3.3 Dashboard
-
-![Dashboard](assets/dashboard.jpg)
-
-### 3.4 AI Lens Upload Page
-
-![AI Lens Upload Page](assets/ai_lens_upload.jpg)
-
-### 3.5 Food Result Summary Page
-
-![Result Summary Page](assets/result_summary.jpg)
-
-### 3.6 Result Chart and Warning Page
-
-![Result Chart and Warning Page](assets/result_chart_warning.jpg)
-
-### 3.7 Result Detail and Recommendation Page
-
-![Result Detail and Recommendation Page](assets/result_detail_recommendation.jpg)
-
-### 3.8 Profile Page
-
-![Profile Page](assets/profile_page.jpg)
-
----
-
-## 4. Information Architecture
+## Information architecture
 
 ```mermaid
 flowchart TD
-    A[NutriLens App] --> B[Landing Page]
-    A --> C[Authentication]
-    A --> D[Dashboard]
-    A --> E[AI Lens]
-    A --> F[Result Page]
-    A --> G[Profile]
-
-    C --> C1[Login]
-    C --> C2[Registration]
-
-    D --> D1[Daily Calories]
-    D --> D2[Recent Meals]
-    D --> D3[Quick Upload Button]
-
-    E --> E1[Upload Food Image]
-    E --> E2[Preview Image]
-    E --> E3[Start Analysis]
-
-    F --> F1[Detected Food]
-    F --> F2[Calories]
-    F --> F3[Protein, Fat, Carbs]
-    F --> F4[Health Warning]
-    F --> F5[Recommendation]
-
-    G --> G1[Personal Details]
-    G --> G2[Biometric Details]
-    G --> G3[Dietary Target]
+    App[NutriLens] --> Public[Landing and authentication]
+    App --> Protected[Signed-in experience]
+    Protected --> Dashboard[Dashboard and history]
+    Protected --> Lens[AI Lens upload and result]
+    Protected --> Profile[Profile and preferences]
+    Protected --> Admin[Administrator workspace]
+    Lens --> Upload[Image preview and upload]
+    Lens --> Result[Food/no-food result]
+    Admin --> Users[Users and account status]
+    Admin --> Images[Uploaded-image review]
+    Admin --> AI[Gemini settings]
 ```
 
----
+## Primary user flow
 
-## 5. User Flow Graph
+1. A visitor opens the landing screen and signs in or registers.
+2. The app restores the session and loads the profile plus history.
+3. A new user completes required profile fields before scanning.
+4. On AI Lens, the user selects a JPG, PNG, or WebP food photo and confirms upload.
+5. The app displays loading progress, then either a no-food state, an actionable error, or the model result.
+6. A food result shows the estimate, classification, recommendation, benefits, cautions, and suggestions. Users can return to Dashboard or start another scan.
+7. A user can update profile details and review historical results; an administrator can access protected operational tools.
 
-![NutriLens User Flow Graph](assets/user_flow_graph.png)
+## Screen specifications
 
-```mermaid
-flowchart TD
-    A[Landing Page: NutriLens Intro] --> B[Login Screen]
-    B -->|No account| C[Register Screen]
-    C -->|Account created| D[Activity Dashboard]
-    B -->|Login success| D
-    D -->|Tap AI Lens| E[AI Vision Analyzer]
-    E -->|Upload meal image| F[Food Analysis Result]
-    F --> G[Macro Pie Chart and AI Warning]
-    G -->|Analyze another meal| E
-    G -->|View profile| H[User Profile]
-    H --> I[Save Profile Metrics]
-    I --> G
-    G -->|Logout| J[Login Screen]
-```
-
----
-
-## 6. Original User Flow Diagram
-
-![Original User Flow Diagram](assets/original_user_flow.png)
-
----
-
-## 7. System Architecture Design
-
-![NutriLens System Architecture Graph](assets/system_architecture_graph.png)
-
-```mermaid
-flowchart LR
-    U[User Browser] --> FE[React + Vite + TypeScript Frontend]
-    FE --> API[Hono Backend API on Cloudflare Workers]
-    API --> AUTH[Authentication and Profile Service]
-    AUTH --> DB[(PostgreSQL Database on Neon)]
-    API --> AI[AI Food Recognition Service]
-    AI --> MODEL[EfficientNet-LC Food-101]
-    AI --> NAPI[Nutrition API]
-    NAPI --> REC[Recommendation Engine]
-    REC --> API
-    API --> FE
-```
-
----
-
-## 8. AI and Nutrition Analysis Pipeline
-
-![NutriLens AI Pipeline Graph](assets/ai_pipeline_graph.png)
-
-```mermaid
-flowchart LR
-    A[Uploaded Meal Image] --> B[Image Pre-processing]
-    B --> C[Food Detection]
-    C --> D[Food Classification]
-    D --> E[Nutrition API Lookup]
-    E --> F[Calories and Macro Calculation]
-    F --> G[Healthy or Unhealthy Classification]
-    G --> H[Risk Warning]
-    H --> I[Personalized Recommendation]
-    I --> J[Result Page Visualization]
-```
-
----
-
-## 9. Data Model Design
-
-![NutriLens Data Model Graph](assets/data_model_graph.png)
-
-```mermaid
-erDiagram
-    USERS ||--|| PROFILES : has
-    USERS ||--o{ MEALS : uploads
-    MEALS ||--|| NUTRITION_RESULTS : produces
-    NUTRITION_RESULTS ||--o{ RECOMMENDATIONS : generates
-
-    USERS {
-        string user_id PK
-        string name
-        string email
-        string password_hash
-        datetime created_at
-    }
-
-    PROFILES {
-        string profile_id PK
-        string user_id FK
-        int age
-        float height
-        float weight
-        string dietary_target
-    }
-
-    MEALS {
-        string meal_id PK
-        string user_id FK
-        string image_url
-        string detected_food
-        string health_status
-        datetime created_at
-    }
-
-    NUTRITION_RESULTS {
-        string result_id PK
-        string meal_id FK
-        int calories
-        float protein
-        float fat
-        float carbohydrate
-        string risk_level
-    }
-
-    RECOMMENDATIONS {
-        string recommendation_id PK
-        string result_id FK
-        string warning_text
-        string suggestion_text
-        datetime created_at
-    }
-```
-
----
-
-## 10. Visual Design System
-
-### 10.1 Color Palette
-
-| Token | Color | Usage |
+| Screen | Purpose | Essential content/states |
 |---|---|---|
-| Primary Green | `#69B34C` | Main action buttons, success, healthy status |
-| Light Green | `#EAF8E4` | App background, soft card backgrounds |
-| Dark Text | `#111827` | Headings and high-contrast text |
-| Medium Text | `#4B5563` | Body text and secondary labels |
-| Warning Amber | `#F59E0B` | Caution and moderate health warning |
-| Error Red | `#EF4444` | Risk alerts and unhealthy status |
-| White | `#FFFFFF` | Cards and phone screen surface |
-| Dark Navy | `#020617` | Presentation background and dark theme preview |
+| Landing | Explain the app and prompt entry. | Product message, sign-in, registration. |
+| Login/registration | Establish an authenticated session. | Labeled fields, validation, loading, error feedback. |
+| Dashboard | Review activity. | Recent scans, history selection, calendar-oriented pattern view, empty state. |
+| AI Lens | Create a scan. | File selection/preview, profile-gate notice, upload/analyzing states, retryable errors. |
+| Result | Explain one analysis. | Food name or no-food indicator, confidence, estimate, classification, recommendation, guidance. |
+| Profile | Keep context accurate. | Name, email, age, gender, height, weight, goal, health conditions, allergies, save/sign-out. |
+| Admin | Operate the service. | Overview, users, uploaded images, logs, model/key-pool configuration. |
 
-### 10.2 Typography
+## Result and error language
 
-| Element | Suggested Style |
-|---|---|
-| App title | 24–28px, bold |
-| Screen title | 18–22px, semi-bold |
-| Card title | 14–16px, semi-bold |
-| Body text | 13–15px, regular |
-| Caption text | 11–12px, medium |
+- Use **estimate** or **visible portion** for calculated values; avoid treating results as measured facts.
+- Present classifications and recommendations as guidance, never diagnoses.
+- For unclear/non-food images, use “No food detected” and invite a clearer meal image.
+- Give upload and service errors a useful next action without exposing keys, stack traces, or internal system details.
+- Direct allergy matches receive an explicit warning and `Avoid` recommendation, while reminding users that image recognition cannot guarantee hidden ingredients.
 
-### 10.3 Component Style
+## Visual system
 
-| Component | Style Direction |
-|---|---|
-| Primary Button | Rounded rectangle, green background, white text |
-| Secondary Button | White background, thin border, dark text |
-| Nutrition Card | Rounded card, soft shadow, icon + numeric value |
-| Warning Card | Light amber/red background depending on risk |
-| Upload Box | Large rounded drop zone with camera/upload icon |
-| Bottom Navigation | Four tabs: Home, AI Lens, Results, Profile |
+The interface uses a calm green health-oriented palette, light card surfaces, strong dark-text contrast, and amber/rose states for moderation/warnings. Buttons, fields, tabs, status labels, and images have visible keyboard focus states. Color is paired with text for classifications and error status.
 
----
+The application uses responsive single-column behavior for primary mobile flows and expands dashboard/admin grids at larger breakpoints. Images have descriptive alt text and fields have labels; administrators use tab semantics for their workspace sections.
 
-## 11. Screen-by-Screen Design Specification
+## Implementation alignment
 
-### 11.1 Landing Page
-
-**Purpose:** Introduce NutriLens and guide users to start using the application.
-
-**Main elements:**
-
-- NutriLens logo or camera icon
-- Short tagline: “Snap a meal, know the deal”
-- Get Started button
-- Clean mobile phone-style layout
-
-### 11.2 Login Page
-
-**Purpose:** Allow existing users to access their nutrition dashboard.
-
-**Main elements:**
-
-- Email input field
-- Password input field
-- Login button
-- Registration link
-- Optional social login buttons
-
-### 11.3 Dashboard
-
-**Purpose:** Provide a quick overview of the user’s nutrition activity.
-
-**Main elements:**
-
-- Welcome message
-- Total calories card
-- Protein, fat, and carbohydrate cards
-- Recent analysis section
-- Bottom navigation
-
-### 11.4 AI Lens Upload Page
-
-**Purpose:** Allow users to upload or capture a food image for AI analysis.
-
-**Main elements:**
-
-- Food analyzer title
-- Upload box or camera button
-- Image preview area
-- Analyze button
-- Loading state while the model processes the image
-
-### 11.5 Result Page
-
-**Purpose:** Show detected food and nutritional information.
-
-**Main elements:**
-
-- Uploaded food image
-- Detected food name
-- Calories
-- Protein, fat, and carbohydrate values
-- Healthy/unhealthy status
-- Button to view detailed analysis
-
-### 11.6 Result Chart Page
-
-**Purpose:** Visualize nutrition information in a more understandable way.
-
-**Main elements:**
-
-- Macro pie chart
-- Calories display
-- AI warning card
-- Recommendation text
-- Continue or analyze another meal button
-
-### 11.7 Profile Page
-
-**Purpose:** Collect and manage user health-related details for personalization.
-
-**Main elements:**
-
-- User name and email
-- Age, height, weight
-- Dietary target
-- Save profile metrics button
-- Health warning update status
-
----
-
-## 12. Wireframe Sketches
-
-### 12.1 Mobile Home Wireframe
-
-```text
-+--------------------------------+
-|            NutriLens           |
-|                                |
-|             [Camera]           |
-|                                |
-|      Snap a meal, know the deal|
-|                                |
-|          [ Get Started ]       |
-+--------------------------------+
-```
-
-### 12.2 AI Lens Upload Wireframe
-
-```text
-+--------------------------------+
-| < Back              Profile    |
-|                                |
-|          FOOD ANALYZER         |
-|                                |
-|      +------------------+      |
-|      |     Upload       |      |
-|      |   Food Image     |      |
-|      +------------------+      |
-|                                |
-|        [ Analyze Meal ]        |
-|                                |
-| Home | AI Lens | Result | User |
-+--------------------------------+
-```
-
-### 12.3 Result Page Wireframe
-
-```text
-+--------------------------------+
-|          FOOD ANALYSIS         |
-|                                |
-|        [ Uploaded Image ]      |
-|                                |
-| Food: Chicken Rice             |
-| Calories: 420 kcal             |
-| Protein: 25g                   |
-| Fat: 12g                       |
-| Carbs: 52g                     |
-|                                |
-| Status: Healthy                |
-| [ View Macro Chart ]           |
-+--------------------------------+
-```
-
----
-
-## 13. Frontend Route Design
-
-```mermaid
-flowchart TD
-    A[/] --> B[/login]
-    A --> C[/register]
-    B --> D[/dashboard]
-    C --> D
-    D --> E[/ai-lens]
-    E --> F[/analysis-result/:mealId]
-    F --> G[/analysis-chart/:mealId]
-    D --> H[/profile]
-    H --> D
-```
-
-| Route | Page | Access |
-|---|---|---|
-| `/` | Landing page | Public |
-| `/login` | Login page | Public |
-| `/register` | Registration page | Public |
-| `/dashboard` | Dashboard | Authenticated user |
-| `/ai-lens` | Food image upload | Authenticated user |
-| `/analysis-result/:mealId` | Food analysis result | Authenticated user |
-| `/analysis-chart/:mealId` | Macro chart and recommendation | Authenticated user |
-| `/profile` | User profile | Authenticated user |
-
----
-
-## 14. Backend API Design
-
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `POST` | `/api/auth/register` | Create new user account |
-| `POST` | `/api/auth/login` | Authenticate user |
-| `GET` | `/api/profile` | Fetch profile details |
-| `PUT` | `/api/profile` | Update profile metrics |
-| `POST` | `/api/meal/upload` | Upload food image |
-| `POST` | `/api/meal/analyze` | Run AI food recognition |
-| `GET` | `/api/meal/:id/result` | Fetch analysis result |
-| `GET` | `/api/meal/history` | Fetch recent meal history |
-| `GET` | `/api/recommendation/:mealId` | Fetch health warning and recommendation |
-
----
-
-## 15. UI State Design
-
-| State | User Experience |
-|---|---|
-| Empty state | Show friendly message: “Upload your first meal to begin.” |
-| Loading state | Show spinner and text: “Analyzing your food image...” |
-| Success state | Show detected food, calories, macros, and recommendation |
-| Error state | Show message: “Could not detect food clearly. Please upload another image.” |
-| Offline/API failure | Show retry button and keep previous data visible if available |
-
----
-
-## 16. Responsive Design Rules
-
-| Device | Design Behavior |
-|---|---|
-| Mobile | Single-column layout, bottom navigation, large upload button |
-| Tablet | Centered mobile card layout with larger margins |
-| Desktop | Mobile preview or dashboard-style layout with side panel |
-
----
-
-## 17. Accessibility Design
-
-- Use high contrast between text and background.
-- Give each input field a visible label.
-- Use alt text for uploaded image previews.
-- Do not use color alone to indicate risk; include text labels such as “Healthy,” “Moderate Risk,” and “High Risk.”
-- Buttons should be large enough for mobile touch interaction.
-- Error messages should be clear and placed near the affected field.
-
----
-
-## 18. Final Technology Stack
-
-| Area | Technology |
-|---|---|
-| Frontend | React, Vite, TypeScript, Tailwind CSS |
-| Backend | Hono on Cloudflare Workers |
-| Database | PostgreSQL on Neon |
-| AI / Machine Learning | Gemini vision API |
-| API and Tools | Nutrition API for food data analysis |
-
----
-
-## 19. Design Acceptance Checklist
-
-- [ ] Landing page is simple and clear
-- [ ] Login and registration pages work correctly
-- [ ] Dashboard shows user nutrition summary
-- [ ] AI Lens upload interface is easy to use
-- [ ] Result page shows food image, detected food, calories, and macros
-- [ ] Macro chart page includes health warning and recommendation
-- [ ] Profile page stores user biometrics and dietary target
-- [ ] Application is responsive on mobile and desktop
-- [ ] Error, loading, and empty states are designed
-- [ ] UI is consistent with the NutriLens color palette
-- [ ] Architecture and data model are documented
-- [ ] User flow and system graphs are included
+The UI calls a session-cookie API at `VITE_API_BASE_URL`, uploads before analysis, and never handles Gemini credentials. Gemini runs only behind the backend after request validation. See [../documentation/system_design_document.md](../documentation/system_design_document.md) and [../documentation/api_design.md](../documentation/api_design.md) for the supporting technical design.

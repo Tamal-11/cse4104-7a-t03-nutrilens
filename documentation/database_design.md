@@ -1,129 +1,53 @@
 # Database Design
 
-This design is for planning phase.
+Production application data is stored in Neon PostgreSQL. Authentication-managed tables are owned by Neon Auth in the `neon_auth` schema; application migrations do not alter them. Image bytes live in the private `food-images` R2 bucket, while PostgreSQL stores metadata and result history.
 
-Main idea:
+## Application tables
 
-- Neon Auth keeps login tables
-- App keeps profile, upload, and analysis tables
-- Image file stays in R2
-- Database keeps file metadata and result history
+| Table | Purpose |
+|---|---|
+| `user_profiles` | One application profile per authenticated user, including account status and food preferences. |
+| `food_images` | Owned upload metadata and R2 object key. |
+| `nutrition_catalog` | Manually maintained starter food data used by lookup endpoints and optional result matching. |
+| `analysis_requests` | Each stored food-analysis request. |
+| `analysis_results` | One validated Gemini result per analysis request. |
+| `system_events` | Recent operational events for the administrator overview. |
+| `schema_migrations` | Migration runner bookkeeping. |
 
-## Main database choice
+## Key fields
 
-- App database: Neon PostgreSQL
-- Auth source: Neon Auth built on Better Auth
-- Auth schema source: `neon_auth`
-- File storage: Cloudflare R2 bucket `food-images`
+### `user_profiles`
 
-## Tables
+`user_id` is the primary key and corresponds to the authenticated user. The table contains `email`, `full_name`, `age`, `gender`, `height_cm`, `weight_kg`, `health_conditions`, `allergies`, `food_goal`, `account_status`, `last_active_at`, `created_at`, and `updated_at`. `food_goal` defaults to `Eat balanced`; supported values in the API are `Lose weight`, `Gain weight`, and `Eat balanced`.
 
-### 1. `user_profiles`
+### `food_images`
 
-Stores app profile details. Login identity stays in `neon_auth.user`.
+Each image has UUID `id`, `user_id`, original `file_name`, unique R2 `object_key`, optional `image_url`, `mime_type`, `size_bytes`, optional `meal_type`/`notes`, and `uploaded_at`. The object key, not a public URL, is the authoritative storage reference.
 
-| Column | Type | Key | Notes |
-|---|---|---|---|
-| user_id | uuid | PK, FK | References `neon_auth.user.id` |
-| full_name | text |  | User full name |
-| age | int |  | Optional |
-| gender | text |  | Optional |
-| height_cm | numeric(5,2) |  | Optional |
-| weight_kg | numeric(5,2) |  | Optional |
-| created_at | timestamptz |  | Default `now()` |
-| updated_at | timestamptz |  | Default `now()` |
+### Analysis and catalog tables
 
-### 2. `food_images`
+`analysis_requests` links a user and image and records `status`, `requested_at`, and `completed_at`. `analysis_results` is one-to-one with a request and includes optional `matched_catalog_id`, predicted food, confidence, JSON nutrition snapshot, JSON health insights, model metadata, `is_mock`, and creation time. The live Worker persists Gemini results with `is_mock = false`.
 
-Stores uploaded image metadata.
+`nutrition_catalog` contains a manually seeded starter catalog: food identity, serving size, macro/fiber values, vitamins/minerals, health benefits/warnings, source type, and timestamps. It is not represented as a medical or authoritative nutrition database.
 
-| Column | Type | Key | Notes |
-|---|---|---|---|
-| id | uuid | PK | Image row id |
-| user_id | uuid | FK | References `user_profiles.user_id` |
-| file_name | text |  | Original or normalized file name |
-| object_key | text | Unique | Path inside R2 |
-| image_url | text |  | Delivery URL |
-| mime_type | text |  | Example `image/jpeg` |
-| size_bytes | bigint |  | File size |
-| meal_type | text |  | breakfast, lunch, dinner, snack |
-| notes | text |  | Optional |
-| uploaded_at | timestamptz |  | Default `now()` |
+## Relationships
 
-### 3. `nutrition_catalog`
+```mermaid
+erDiagram
+    NEON_AUTH_USER ||--|| USER_PROFILES : authenticates
+    USER_PROFILES ||--o{ FOOD_IMAGES : owns
+    USER_PROFILES ||--o{ ANALYSIS_REQUESTS : creates
+    FOOD_IMAGES ||--o{ ANALYSIS_REQUESTS : is_analyzed_by
+    ANALYSIS_REQUESTS ||--|| ANALYSIS_RESULTS : produces
+    NUTRITION_CATALOG ||--o{ ANALYSIS_RESULTS : may_match
+```
 
-Stores mock nutrition source data for now.
+## Integrity and performance
 
-| Column | Type | Key | Notes |
-|---|---|---|---|
-| id | uuid | PK | Catalog row id |
-| food_name | text | Unique | Example `Apple` |
-| category | text |  | Fruit, rice, drink |
-| serving_size | text |  | Example `100 g` |
-| calories | numeric(8,2) |  |  |
-| protein | numeric(8,2) |  |  |
-| carbohydrates | numeric(8,2) |  |  |
-| fats | numeric(8,2) |  |  |
-| fiber | numeric(8,2) |  |  |
-| vitamins | jsonb |  | Array/json data |
-| minerals | jsonb |  | Array/json data |
-| health_benefits | jsonb |  | Mock text list |
-| warnings | jsonb |  | Mock text list |
-| source_type | text |  | `mock` now |
-| created_at | timestamptz |  | Default `now()` |
-| updated_at | timestamptz |  | Default `now()` |
+- UUID primary keys use `pgcrypto`’s `gen_random_uuid()` where applicable.
+- Foreign keys cascade when a profile, image, or request is removed; a catalog match is set to null if that catalog row is removed.
+- Unique constraints protect profile email, image object key, catalog food name, and result-per-request.
+- `set_updated_at` triggers update timestamps for profiles and catalog rows.
+- Indexes support scans by user and time, plus recent system-event retrieval.
 
-### 4. `analysis_requests`
-
-Stores each analyze action.
-
-| Column | Type | Key | Notes |
-|---|---|---|---|
-| id | uuid | PK | Request id |
-| user_id | uuid | FK | References `user_profiles.user_id` |
-| image_id | uuid | FK | References `food_images.id` |
-| status | text |  | pending, completed, failed |
-| requested_at | timestamptz |  | Default `now()` |
-| completed_at | timestamptz |  | Nullable |
-
-### 5. `analysis_results`
-
-Stores final result returned to frontend.
-
-| Column | Type | Key | Notes |
-|---|---|---|---|
-| id | uuid | PK | Result id |
-| request_id | uuid | FK, Unique | One result per request |
-| matched_catalog_id | uuid | FK | References `nutrition_catalog.id` |
-| predicted_food_name | text |  | Example `Apple` |
-| confidence_score | numeric(5,4) |  | Example `0.9400` |
-| nutrition_snapshot | jsonb |  | Saved result copy |
-| health_insights | jsonb |  | Benefits and warnings |
-| model_name | text |  | Future-ready |
-| model_version | text |  | Future-ready |
-| is_mock | boolean |  | `true` for now |
-| created_at | timestamptz |  | Default `now()` |
-
-## Relationship summary
-
-- One Neon auth user has one app profile
-- One profile has many uploaded images
-- One profile has many analysis requests
-- One uploaded image can be analyzed many times
-- One analysis request has one analysis result
-- Many analysis results can point to one nutrition catalog item
-
-## Why this shape works
-
-- Login part stays with Neon Auth
-- App data part stays clean and separate
-- Worker can read one user id and fetch only that user's rows
-- Image file storage stays outside Postgres
-- Mock nutrition data can switch to real AI later
-- Saved history stays easy
-
-## Planning note
-
-Neon Auth stores its own tables in the `neon_auth` schema.
-
-This doc treats those auth tables as managed by Neon, not by our own migrations.
+The source of truth is the migrations in [`../backend/migrations`](../backend/migrations), applied in numeric order with `pnpm run db:migrate`.

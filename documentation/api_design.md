@@ -1,366 +1,118 @@
 # API Design
 
-This is target design only. No full Neon + Worker backend is implemented yet.
+The production API is a Hono Cloudflare Worker. All `/api/v1/*` routes use the current Neon Auth session cookie; clients should send requests with credentials enabled. The frontend does not use bearer tokens for application routes.
 
-## Route split
+`GET /` identifies the service, `GET /health` reports service/database health, and `GET /help` exposes runtime endpoint metadata. `GET /help/<endpoint-path>?method=<METHOD>` returns detailed metadata for a particular Worker route.
 
-Cloudflare Worker is the only public backend. It proxies authentication to Neon
-Auth and handles application data routes.
+## Authentication routes
 
-## Auth APIs
+The Worker proxies these public paths to Neon Auth.
 
-Base URL:
+| Method | Path | Purpose |
+|---|---|---|
+| POST | `/api/auth/sign-up` | Create an account. |
+| POST | `/api/auth/sign-in` | Start a session. |
+| GET | `/api/auth/session` | Read the current session/user. |
+| POST | `/api/auth/sign-out` | End the current session. |
 
-```text
-/api/auth
-```
+The production proxy maps these to Neon Auth’s `/sign-up/email`, `/sign-in/email`, `/get-session`, and `/sign-out` routes. The local demo also accepts the direct `/email` suffixes for convenience.
 
-These Hono routes proxy requests to the private `NEON_AUTH_URL` binding.
+## User routes
 
-### 1. Register User
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/profile` | Read the current profile. |
+| POST | `/api/v1/profile` | Create or update the current profile. |
+| POST | `/api/v1/upload-food-image` | Validate and store one food image. |
+| GET | `/api/v1/food-images/:imageId` | Read an owned private image. |
+| POST | `/api/v1/analyze-food` | Analyze an owned stored image with Gemini. |
+| GET | `/api/v1/analysis-history` | List current-user analyses, newest first. |
+| GET | `/api/v1/analysis-history/:analysisId` | Read one owned analysis. |
+| GET | `/api/v1/nutrition-lookup?food=...` | Read a catalog nutrition entry. |
+| GET | `/api/v1/health-insights?food=...` | Read catalog benefits and warnings. |
 
-```text
-POST /api/auth/sign-up/email
-```
-
-Purpose:
-
-- Make account with email and password
-- Start user session after sign-up if auth settings allow it
-
-Request body:
-
-```json
-{
-  "email": "saiful@example.com",
-  "password": "StrongPass123!",
-  "name": "Saiful Islam"
-}
-```
-
-Success response:
-
-```json
-{
-  "token": "session-token-or-cookie-managed-by-sdk",
-  "user": {
-    "id": "uuid",
-    "email": "saiful@example.com",
-    "name": "Saiful Islam"
-  }
-}
-```
-
-### 2. Login User
-
-```text
-POST /api/auth/sign-in/email
-```
-
-Purpose:
-
-- Check email and password
-- Start session
-
-Request body:
-
-```json
-{
-  "email": "saiful@example.com",
-  "password": "StrongPass123!"
-}
-```
-
-Success response:
-
-```json
-{
-  "token": "jwt-or-session-managed-by-sdk",
-  "user": {
-    "id": "uuid",
-    "email": "saiful@example.com",
-    "name": "Saiful Islam"
-  }
-}
-```
-
-### 3. Get Current Session
-
-```text
-GET /api/auth/get-session
-```
-
-Purpose:
-
-- Check if user is still logged in
-- Read current session user
-
-Success response:
-
-```json
-{
-  "session": {
-    "userId": "uuid"
-  },
-  "user": {
-    "id": "uuid",
-    "email": "saiful@example.com",
-    "name": "Saiful Islam"
-  }
-}
-```
-
-### 4. Logout User
-
-```text
-POST /api/auth/sign-out
-```
-
-Purpose:
-
-- End current session
-
-Success response:
-
-```json
-{
-  "success": true
-}
-```
-
-## App APIs
-
-Worker base path:
-
-```text
-/api/v1
-```
-
-All app APIs below are planned in Cloudflare Worker with Hono.
-
-Protected routes expect logged-in user.
-
-### 5. Update Profile
-
-```text
-POST /api/v1/profile
-```
-
-Purpose:
-
-- Save user profile details used by the app
-
-Headers:
-
-```text
-Authorization: Bearer <access_token>
-Content-Type: application/json
-```
-
-Request body:
+### Profile request
 
 ```json
 {
   "fullName": "Saiful Islam Anik",
   "age": 24,
-  "gender": "male",
+  "gender": "Male",
   "heightCm": 170,
-  "weightKg": 68
+  "weightKg": 68,
+  "healthConditions": [],
+  "allergies": ["Peanuts (China Badam)"],
+  "foodGoal": "Eat balanced"
 }
 ```
 
-Success response:
+`foodGoal` must be `Lose weight`, `Gain weight`, or `Eat balanced`. Uploading requires a non-empty display name, age 13–120, height 50–260 cm, and weight 20–500 kg.
+
+### Upload request
+
+Send `multipart/form-data` with `image` (required), and optional `mealType` and `notes`. JPEG, PNG, and WebP are accepted after MIME, byte-limit, and file-signature validation. The default size limit is 8 MiB.
 
 ```json
 {
   "success": true,
-  "message": "Profile updated successfully."
-}
-```
-
-### 6. Upload Food Image
-
-```text
-POST /api/v1/upload-food-image
-```
-
-Purpose:
-
-- Save image file in R2
-- Save image metadata in Neon PostgreSQL
-
-Headers:
-
-```text
-Authorization: Bearer <access_token>
-Content-Type: multipart/form-data
-```
-
-Form data:
-
-```text
-image: <binary file>
-mealType: breakfast | lunch | dinner | snack
-notes: optional string
-```
-
-Success response:
-
-```json
-{
-  "success": true,
-  "message": "Image uploaded successfully.",
   "data": {
     "imageId": "uuid",
-    "objectKey": "food-images/user-id/file-name.jpg",
-    "imageUrl": "https://pub-example.r2.dev/food-images/user-id/file-name.jpg"
+    "objectKey": "user-id/uuid-photo.jpg",
+    "imageUrl": "/api/v1/food-images/uuid"
   }
 }
 ```
 
-### 7. Analyze Food Image
-
-```text
-POST /api/v1/analyze-food
-```
-
-Purpose:
-
-- Make one analysis job row
-- Return mock result now
-- Keep shape ready for real AI later
-
-Headers:
-
-```text
-Authorization: Bearer <access_token>
-Content-Type: application/json
-```
-
-Request body:
+### Analysis request and response
 
 ```json
-{
-  "imageId": "uuid"
-}
+{ "imageId": "uuid" }
 ```
-
-Success response:
-
-```json
-{
-  "success": true,
-  "message": "Mock analysis completed.",
-  "data": {
-    "analysisId": "uuid",
-    "foodName": "Apple",
-    "confidence": 0.94,
-    "servingSize": "100 g",
-    "nutrition": {
-      "calories": 52,
-      "protein": 0.3,
-      "carbohydrates": 14,
-      "fats": 0.2,
-      "fiber": 2.4,
-      "vitamins": ["Vitamin C", "Vitamin K"],
-      "minerals": ["Potassium"]
-    },
-    "healthBenefits": [
-      "Good for quick light snack",
-      "Has fiber"
-    ],
-    "warnings": [
-      "Portion still matters for sugar control"
-    ],
-    "isMock": true
-  }
-}
-```
-
-### 8. Get Analysis History
-
-```text
-GET /api/v1/analysis-history
-```
-
-Purpose:
-
-- Show all saved results for current user
-
-Headers:
-
-```text
-Authorization: Bearer <access_token>
-```
-
-Success response:
-
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "analysisId": "uuid",
-      "foodName": "Apple",
-      "confidence": 0.94,
-      "imageUrl": "https://pub-example.r2.dev/food-images/user-id/file-name.jpg",
-      "createdAt": "2026-06-22T10:00:00Z",
-      "isMock": true
-    }
-  ]
-}
-```
-
-### 9. Get Single Analysis Details
-
-```text
-GET /api/v1/analysis-history/:analysisId
-```
-
-Purpose:
-
-- Show one saved result
-
-Headers:
-
-```text
-Authorization: Bearer <access_token>
-```
-
-Success response:
 
 ```json
 {
   "success": true,
   "data": {
     "analysisId": "uuid",
-    "foodName": "Apple",
-    "confidence": 0.94,
+    "isFood": true,
+    "foodName": "Pizza",
+    "confidence": 0.87,
     "nutrition": {
-      "calories": 52,
-      "protein": 0.3,
-      "carbohydrates": 14,
-      "fats": 0.2
+      "calories": 266,
+      "protein": 11,
+      "carbohydrates": 33,
+      "fats": 10,
+      "fiber": 2,
+      "servingSize": "visible portion estimate"
     },
-    "healthBenefits": [
-      "Good for digestion"
-    ],
-    "warnings": [
-      "Do not overeat"
-    ],
-    "createdAt": "2026-06-22T10:00:00Z"
+    "classification": "Moderate",
+    "recommendation": "Limit",
+    "healthBenefits": ["..."],
+    "warnings": ["..."],
+    "suggestions": ["..."],
+    "explanation": "...",
+    "imageUrl": "/api/v1/food-images/uuid"
   }
 }
 ```
 
-## Common Error Response
+For a non-food image, the model returns `isFood: false`, `foodName: "Not food"`, zero nutrition values, and empty guidance arrays. Food estimates are not medical advice.
 
-```json
-{
-  "success": false,
-  "message": "Validation failed.",
-  "errors": {
-    "email": "Email is required."
-  }
-}
-```
+## Administrator routes
+
+All administrator routes require the authenticated user’s Neon role to be `admin`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/v1/admin/overview` | Read user, scan, health, and event summary. |
+| GET | `/api/v1/admin/uploads` | List up to 300 uploaded images. |
+| GET | `/api/v1/admin/uploads/:imageId/image` | Read an uploaded image for review. |
+| GET | `/api/v1/admin/ai-settings` | Read model and configured-key count. |
+| PUT | `/api/v1/admin/ai-settings` | Save a model and 1–20 unique API keys. |
+| PUT | `/api/v1/admin/users/:userId/status` | Set an account to `Active` or `Suspended`. |
+
+AI-settings requests take `{ "apiKeys": ["..."], "model": "gemini-2.5-flash" }`. The response never returns the keys. The Worker rotates saved keys and can fall back to `GEMINI_API_KEY` when no pool is configured.
+
+## Errors and status codes
+
+Responses normally use `{ "success": false, "message": "..." }`. Common status codes are `400` for invalid input, `401` for a missing session, `403` for suspended accounts, missing profile completion, or non-admin access, `404` for missing/foreign records, `429` for rate limiting, `502` for Gemini failures, `503` for unavailable service/configuration, and `500` for unexpected failures. Unhandled Worker errors also include a `requestId` for server-side diagnostics.
