@@ -1,36 +1,24 @@
 # Team Information
 
-## Official Team Name
-
-CSE4104-7A-T03
-
-## Section
-
-7A
-
-## Project Title
-
-NutriLens - AI Based Food Recognition and Nutrition Analysis System
-
-## Team Leader
+## Project
 
 | Field | Information |
 |---|---|
-| Name | Md. Arafat Hossen |
-| Role | Team Leader |
-| ID | 11230121099 |
-| Email | ahtamal1117@gmail.com |
-| Contact | 01993079671 |
+| Course | CSE4104 |
+| Section | 7A |
+| Team | T03 / CSE4104-7A-T03 |
+| Project | NutriLens — AI Based Food Recognition and Nutrition Analysis System |
+| Repository | [Tamal-11/cse4104-7a-t03-nutrilens](https://github.com/Tamal-11/cse4104-7a-t03-nutrilens) |
 
-## Team Members
+## Members
 
-| SL | Name | Student ID | Role |
+| SL | Name | Student ID | Primary responsibility |
 |---|---|---|---|
-| 1 | Md. Arafat Hossen | 11230121099 | Team Leader |
-| 2 | Md. Saiful Islam Anik | 11230121086 | Backend Developer |
-| 3 | Md. Azizul Haque Rifat | 11230121087 | AI Engineer |
-| 4 | Gazi Nafisa Maliat | 11250122046 | Frontend Designer |
+| 1 | Md. Arafat Hossen | 11230121099 | Team leadership, coordination, integration, documentation |
+| 2 | Md. Saiful Islam Anik | 11230121086 | Backend, database, deployment support |
+| 3 | Md. Azizul Haque Rifat | 11230121087 | AI-analysis requirements and evaluation |
+| 4 | Gazi Nafisa Maliat | 11250122046 | Frontend design and implementation |
 
-## GitHub Repository Link
+## Maintainer notes
 
-https://github.com/Tamal-11/cse4104-7a-t03-nutrilens.git
+The current implementation uses a server-side Gemini integration instead of a locally trained food-recognition model. Operational credentials, API keys, and production contacts are intentionally not documented in the repository. The Team Leader contact details remain in the course submission records rather than source control.

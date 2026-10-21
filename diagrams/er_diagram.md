@@ -2,48 +2,68 @@
 
 ```mermaid
 erDiagram
-    NEON_AUTH_USERS ||--|| USER_PROFILES : owns
-    USER_PROFILES ||--o{ FOOD_IMAGES : uploads
+    NEON_AUTH_USER ||--|| USER_PROFILES : has
+    USER_PROFILES ||--o{ FOOD_IMAGES : owns
     USER_PROFILES ||--o{ ANALYSIS_REQUESTS : creates
-    FOOD_IMAGES ||--o{ ANALYSIS_REQUESTS : used_in
-    ANALYSIS_REQUESTS ||--|| ANALYSIS_RESULTS : produces
-    NUTRITION_CATALOG ||--o{ ANALYSIS_RESULTS : matched_by
-
-    NEON_AUTH_USERS {
-        uuid id PK
-        string email
-        string name
-    }
+    FOOD_IMAGES ||--o{ ANALYSIS_REQUESTS : is_used_by
+    ANALYSIS_REQUESTS ||--|| ANALYSIS_RESULTS : has
+    NUTRITION_CATALOG ||--o{ ANALYSIS_RESULTS : optionally_matches
 
     USER_PROFILES {
         uuid user_id PK
-        string full_name
+        text email UK
+        text full_name
         int age
-        string gender
+        text gender
         numeric height_cm
         numeric weight_kg
-        timestamptz created_at
-        timestamptz updated_at
+        jsonb health_conditions
+        jsonb allergies
+        text food_goal
+        text account_status
+        timestamptz last_active_at
     }
 
     FOOD_IMAGES {
         uuid id PK
         uuid user_id FK
-        string file_name
-        string object_key
-        string image_url
-        string mime_type
+        text file_name
+        text object_key UK
+        text image_url
+        text mime_type
         bigint size_bytes
-        string meal_type
-        string notes
+        text meal_type
+        text notes
         timestamptz uploaded_at
+    }
+
+    ANALYSIS_REQUESTS {
+        uuid id PK
+        uuid user_id FK
+        uuid image_id FK
+        text status
+        timestamptz requested_at
+        timestamptz completed_at
+    }
+
+    ANALYSIS_RESULTS {
+        uuid id PK
+        uuid request_id FK
+        uuid matched_catalog_id FK
+        text predicted_food_name
+        numeric confidence_score
+        jsonb nutrition_snapshot
+        jsonb health_insights
+        text model_name
+        text model_version
+        boolean is_mock
+        timestamptz created_at
     }
 
     NUTRITION_CATALOG {
         uuid id PK
-        string food_name
-        string category
-        string serving_size
+        text food_name UK
+        text serving_size
         numeric calories
         numeric protein
         numeric carbohydrates
@@ -53,29 +73,8 @@ erDiagram
         jsonb minerals
         jsonb health_benefits
         jsonb warnings
-        string source_type
-    }
-
-    ANALYSIS_REQUESTS {
-        uuid id PK
-        uuid user_id FK
-        uuid image_id FK
-        string status
-        timestamptz requested_at
-        timestamptz completed_at
-    }
-
-    ANALYSIS_RESULTS {
-        uuid id PK
-        uuid request_id FK
-        uuid matched_catalog_id FK
-        string predicted_food_name
-        numeric confidence_score
-        jsonb nutrition_snapshot
-        jsonb health_insights
-        string model_name
-        string model_version
-        boolean is_mock
-        timestamptz created_at
+        text source_type
     }
 ```
+
+The `NEON_AUTH_USER` entity is managed by Neon Auth and is shown only to explain the profile association. R2 object bytes are intentionally outside this relational diagram; `food_images.object_key` links an image record to its private object.
