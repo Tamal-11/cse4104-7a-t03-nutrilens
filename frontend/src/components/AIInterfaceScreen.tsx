@@ -421,18 +421,15 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
                 </div>
               </div>}
 
-              {/* Diagnostic warnings and medical indicators */}
-              {currentFood.isFood && currentFood.warnings && currentFood.warnings.length > 0 && (
+              {/* Practical actions tailored to the meal */}
+              {currentFood.isFood && currentFood.suggestions && currentFood.suggestions.length > 0 && (
                 <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100/80 flex gap-3 shadow-xs">
                   <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                   <div className="text-sm leading-relaxed">
                     <span className="font-extrabold text-amber-800 block uppercase tracking-wide text-xs mb-1">What this means for you</span>
                     <ul className="list-disc pl-3 mt-1.5 space-y-1.5 text-slate-600 font-semibold">
-                      {currentFood.warnings.map((warn, i) => (
-                        <li key={i} className="text-xs">{warn}</li>
-                      ))}
-                      {currentFood.suggestions && currentFood.suggestions.map((sug, i) => (
-                        <li key={`sug-${i}`} className="text-xs text-teal-850 list-none font-bold text-[#2c5c16]">+ {sug}</li>
+                      {currentFood.suggestions.map((suggestion, i) => (
+                        <li key={i} className="text-xs text-[#2c5c16] font-bold">{suggestion}</li>
                       ))}
                     </ul>
                   </div>
