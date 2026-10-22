@@ -1,0 +1,478 @@
+{
+  "ok": true,
+  "strict": false,
+  "browserSkipped": false,
+  "lint": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 10,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "duplicate_media_discovery_risk",
+        "severity": "warning",
+        "message": "Detected 2 matching img entries with the same source/start/duration.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "D:\\Projects\\cse4104-7a-t03-nutrilens\\brag-output\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Avoid duplicated media nodes that can be discovered twice during compilation."
+      },
+      {
+        "code": "overlapping_gsap_tweens",
+        "severity": "warning",
+        "message": "GSAP tweens overlap on \"#s2-cursor\" for scale between 4.02s and 4.25s.",
+        "selector": "#s2-cursor",
+        "dataAttributes": {},
+        "sourceFile": "D:\\Projects\\cse4104-7a-t03-nutrilens\\brag-output\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Shorten the earlier tween, move the later tween, or add `overwrite: \"auto\"`."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<section id=\"scene-1\"> is a timeline element that contains nested <div id=\"s1-ring\">. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#scene-1",
+        "dataAttributes": {},
+        "sourceFile": "D:\\Projects\\cse4104-7a-t03-nutrilens\\brag-output\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <section id=\"scene-1\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<section id=\"scene-2\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#scene-2",
+        "dataAttributes": {},
+        "sourceFile": "D:\\Projects\\cse4104-7a-t03-nutrilens\\brag-output\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <section id=\"scene-2\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<section id=\"scene-3\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#scene-3",
+        "dataAttributes": {},
+        "sourceFile": "D:\\Projects\\cse4104-7a-t03-nutrilens\\brag-output\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <section id=\"scene-3\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<section id=\"scene-4\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#scene-4",
+        "dataAttributes": {},
+        "sourceFile": "D:\\Projects\\cse4104-7a-t03-nutrilens\\brag-output\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <section id=\"scene-4\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "nested_structure_needs_subcomposition",
+        "severity": "warning",
+        "message": "<section id=\"scene-5\"> is a timeline element that contains nested <div>. The timeline shows one row per top-level element, and the root composition is built only from sub-compositions.",
+        "selector": "#scene-5",
+        "dataAttributes": {},
+        "sourceFile": "D:\\Projects\\cse4104-7a-t03-nutrilens\\brag-output\\composition\\index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Move <section id=\"scene-5\"> and its contents into a sub-composition file and mount it with data-composition-src."
+      },
+      {
+        "code": "duplicate_audio_track",
+        "severity": "warning",
+        "message": "Multiple audible <audio>/<video> elements on track 1 overlap (assets/sfx/interface/click_003.ogg at 4.02-20s, assets/sfx/impact/impactSoft_medium_001.ogg at 12.02-20s). This causes layered audio playback.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Use non-overlapping time windows or different track indices."
+      },
+      {
+        "code": "duplicate_audio_track",
+        "severity": "warning",
+        "message": "Multiple audible <audio>/<video> elements on track 1 overlap (assets/sfx/interface/click_003.ogg at 4.02-20s, assets/sfx/impact/impactSoft_medium_001.ogg at 16.02-20s). This causes layered audio playback.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Use non-overlapping time windows or different track indices."
+      },
+      {
+        "code": "duplicate_audio_track",
+        "severity": "warning",
+        "message": "Multiple audible <audio>/<video> elements on track 1 overlap (assets/sfx/impact/impactSoft_medium_001.ogg at 12.02-20s, assets/sfx/impact/impactSoft_medium_001.ogg at 16.02-20s). This causes layered audio playback.",
+        "selector": "[data-composition-id]",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0
+        },
+        "time": 0,
+        "fixHint": "Use non-overlapping time windows or different track indices."
+      }
+    ],
+    "filesScanned": 1
+  },
+  "runtime": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": []
+  },
+  "layout": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 3,
+    "infoCount": 1,
+    "findings": [
+      {
+        "code": "container_overflow",
+        "severity": "warning",
+        "time": 1.111,
+        "selector": "div.leaf.one",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": 1436.52,
+          "top": -196.33,
+          "right": 2013.48,
+          "bottom": 256.33,
+          "width": 576.97,
+          "height": 452.65
+        },
+        "containerSelector": "div.bg",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1920,
+          "bottom": 1080,
+          "width": 1920,
+          "height": 1080
+        },
+        "overflow": {
+          "right": 93.48,
+          "top": 196.33
+        },
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 1436.52,
+          "y": -196.33,
+          "width": 576.97,
+          "height": 452.65
+        },
+        "firstSeen": 1.111,
+        "lastSeen": 18.889,
+        "occurrences": 9,
+        "heldMs": 0,
+        "times": [
+          1.111,
+          3.333,
+          5.556,
+          7.778,
+          10,
+          12.222,
+          14.444,
+          16.667,
+          18.889
+        ]
+      },
+      {
+        "code": "container_overflow",
+        "severity": "warning",
+        "time": 1.111,
+        "selector": "div.leaf.two",
+        "message": "Element extends outside a clipping layout container.",
+        "rect": {
+          "left": -98.12,
+          "top": 863.73,
+          "right": 368.12,
+          "bottom": 1251.27,
+          "width": 466.23,
+          "height": 387.54
+        },
+        "containerSelector": "div.bg",
+        "fixHint": "Resize/reposition the child or container, or mark intentional overflow with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1920,
+          "bottom": 1080,
+          "width": 1920,
+          "height": 1080
+        },
+        "overflow": {
+          "left": 98.12,
+          "bottom": 171.27
+        },
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": -98.12,
+          "y": 863.73,
+          "width": 466.23,
+          "height": 387.54
+        },
+        "firstSeen": 1.111,
+        "lastSeen": 18.889,
+        "occurrences": 9,
+        "heldMs": 0,
+        "times": [
+          1.111,
+          3.333,
+          5.556,
+          7.778,
+          10,
+          12.222,
+          14.444,
+          16.667,
+          18.889
+        ]
+      },
+      {
+        "code": "panel_out_of_canvas",
+        "severity": "warning",
+        "time": 1.111,
+        "selector": "div.leaf.one",
+        "message": "Painted panel extends outside the composition canvas.",
+        "rect": {
+          "left": 1436.52,
+          "top": -196.33,
+          "right": 2013.48,
+          "bottom": 256.33,
+          "width": 576.97,
+          "height": 452.65
+        },
+        "containerSelector": "#root",
+        "text": "",
+        "fixHint": "Move the panel inward, or mark intentional off-canvas animation with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1920,
+          "bottom": 1080,
+          "width": 1920,
+          "height": 1080
+        },
+        "overflow": {
+          "right": 93.48,
+          "top": 196.33
+        },
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 1436.52,
+          "y": -196.33,
+          "width": 576.97,
+          "height": 452.65
+        },
+        "firstSeen": 1.111,
+        "lastSeen": 18.889,
+        "occurrences": 9,
+        "heldMs": 0,
+        "times": [
+          1.111,
+          3.333,
+          5.556,
+          7.778,
+          10,
+          12.222,
+          14.444,
+          16.667,
+          18.889
+        ]
+      },
+      {
+        "code": "panel_out_of_canvas",
+        "severity": "info",
+        "time": 1.111,
+        "selector": "div.leaf.two",
+        "message": "Painted panel extends outside the composition canvas.",
+        "rect": {
+          "left": -98.12,
+          "top": 863.73,
+          "right": 368.12,
+          "bottom": 1251.27,
+          "width": 466.23,
+          "height": 387.54
+        },
+        "containerSelector": "#root",
+        "text": "",
+        "fixHint": "Move the panel inward, or mark intentional off-canvas animation with data-layout-allow-overflow.",
+        "containerRect": {
+          "left": 0,
+          "top": 0,
+          "right": 1920,
+          "bottom": 1080,
+          "width": 1920,
+          "height": 1080
+        },
+        "overflow": {
+          "left": 98.12,
+          "bottom": 171.27
+        },
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": -98.12,
+          "y": 863.73,
+          "width": 466.23,
+          "height": 387.54
+        },
+        "firstSeen": 1.111,
+        "lastSeen": 18.889,
+        "occurrences": 9,
+        "heldMs": 0,
+        "times": [
+          1.111,
+          3.333,
+          5.556,
+          7.778,
+          10,
+          12.222,
+          14.444,
+          16.667,
+          18.889
+        ]
+      }
+    ],
+    "duration": 20,
+    "samples": [
+      1.111,
+      3.333,
+      5.556,
+      7.778,
+      10,
+      12.222,
+      14.444,
+      16.667,
+      18.889
+    ],
+    "transitionSamples": [],
+    "transitionSamplesDropped": 0,
+    "tolerance": 2,
+    "totalIssueCount": 4,
+    "truncated": false
+  },
+  "motion": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 0,
+    "infoCount": 0,
+    "findings": [],
+    "enabled": false,
+    "samples": 0
+  },
+  "contrast": {
+    "ok": true,
+    "errorCount": 0,
+    "warningCount": 1,
+    "infoCount": 0,
+    "findings": [
+      {
+        "code": "contrast_aa_failure",
+        "severity": "warning",
+        "message": "Contrast is 2.79:1; WCAG AA requires 3:1.",
+        "text": "Upload once",
+        "fg": "rgb(63,112,39)",
+        "bg": "rgb(31,31,34)",
+        "ratio": 2.79,
+        "requiredRatio": 3,
+        "suggestedColor": "rgb(70,117,47)",
+        "large": true,
+        "selector": "#s2-kicker",
+        "dataAttributes": {},
+        "sourceFile": "index.html",
+        "bbox": {
+          "x": 1075,
+          "y": 245,
+          "width": 680,
+          "height": 31
+        },
+        "time": 5.556,
+        "times": [
+          5.556
+        ]
+      }
+    ],
+    "enabled": true,
+    "samples": [
+      1.111,
+      5.556,
+      10,
+      14.444,
+      18.889
+    ],
+    "checked": 41,
+    "passed": 40
+  },
+  "hdr": {
+    "autoPromotion": null,
+    "inspection": "available"
+  },
+  "snapshots": {
+    "enabled": false,
+    "files": [],
+    "times": [],
+    "findingFiles": []
+  }
+}
