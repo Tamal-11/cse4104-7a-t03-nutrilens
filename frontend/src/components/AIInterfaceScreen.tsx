@@ -262,7 +262,8 @@ export default function AIInterfaceScreen({ onNavigate, onAddHistory, selectedSc
                 <div className="flex flex-col justify-center pr-3 border-r border-[#d4ded0]">
                   <span className="text-[10px] text-slate-400 font-bold tracking-tight uppercase">Detected Food:</span>
                   <span className="text-[#3c761e] text-xl font-black leading-tight mt-1 select-all">{currentFood.name}</span>
-                  {currentFood.recommendation && <span className={`mt-2 w-fit rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase ${currentFood.recommendation === 'Avoid' ? 'bg-rose-100 text-rose-800' : currentFood.recommendation === 'Limit' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>{currentFood.recommendation} for your goal</span>}
+                  {currentFood.allergyMatches && currentFood.allergyMatches.length > 0 && <span className="mt-2 w-fit rounded-full bg-rose-100 px-2.5 py-1 text-[10px] font-extrabold uppercase text-rose-800" role="status" aria-label={`Allergy match: ${currentFood.allergyMatches.join(', ')}`}>Allergy match · {currentFood.allergyMatches.join(', ')}</span>}
+                  {currentFood.recommendation && <span className={`mt-2 w-fit rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase ${currentFood.recommendation === 'Avoid' ? 'bg-rose-100 text-rose-800' : currentFood.recommendation === 'Limit' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>{currentFood.recommendation} for your profile</span>}
                 </div>
 
                 {/* Right Column: Key macro stats listing with custom icons next to them */}
