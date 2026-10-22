@@ -1,5 +1,5 @@
 import { Clipboard, Flame, Soup, Clock, Shield, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ScreenType, UserProfile, FoodAnalysis } from '../types';
 import { NutriLensLogo } from './NutriLensLogo';
 
@@ -14,7 +14,13 @@ export default function DashboardScreen({ user, history, onNavigate, onSelectSca
   const totalCalories = history.reduce((sum, item) => sum + item.macros.calories, 0);
   const averageCalories = history.length ? Math.round(totalCalories / history.length) : 0;
   const healthyMeals = history.filter((item) => item.isHealthy).length;
-  const recentAnalyses = history;
+  const [recentFilter, setRecentFilter] = useState<'all' | 'healthy' | 'unhealthy'>('all');
+  const recentSectionRef = useRef<HTMLDivElement>(null);
+  const recentAnalyses = history.filter((item) => {
+    if (recentFilter === 'healthy') return item.classification === 'Healthy';
+    if (recentFilter === 'unhealthy') return item.classification === 'Unhealthy';
+    return true;
+  });
   const latestCalories = recentAnalyses[0] ? Math.round(recentAnalyses[0].macros.calories) : 0;
   const formatScanDate = (value: string) => {
     const date = new Date(value);
@@ -103,7 +109,15 @@ export default function DashboardScreen({ user, history, onNavigate, onSelectSca
           </div>
         </div>
 
-        <div className="p-3.5 bg-white rounded-[22px] shadow-[0_4px_16px_rgba(89,155,56,0.05)] border border-[#e6eedf]/80 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            setRecentFilter('healthy');
+            recentSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+          aria-label={`Show ${healthyMeals} healthy scans in Recent`}
+          className={`p-3.5 bg-white rounded-[22px] shadow-[0_4px_16px_rgba(89,155,56,0.05)] border flex items-center gap-3 text-left transition hover:bg-[#fbfdf9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#599b38] ${recentFilter === 'healthy' ? 'border-[#8bb874] ring-1 ring-[#8bb874]' : 'border-[#e6eedf]/80'}`}
+        >
           <div className="w-9 h-9 rounded-full bg-[#eef7e8] text-[#558e38] flex items-center justify-center">
             <Soup className="w-4.5 h-4.5" />
           </div>
@@ -111,7 +125,7 @@ export default function DashboardScreen({ user, history, onNavigate, onSelectSca
             <span className="block text-[10px] text-slate-400 font-bold select-none leading-none">Healthy</span>
             <span className="text-[22px] font-black text-[#50912e] leading-tight block mt-1">{healthyMeals}</span>
           </div>
-        </div>
+        </button>
 
         <div className="p-3.5 bg-white rounded-[22px] shadow-[0_4px_16px_rgba(89,155,56,0.05)] border border-[#e6eedf]/80 flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-[#eef7e8] text-[#558e38] flex items-center justify-center">
@@ -126,12 +140,27 @@ export default function DashboardScreen({ user, history, onNavigate, onSelectSca
 
       {/* 4. Recent Analysis Section */}
       <div className="px-4 mt-5 mb-8">
-        <div className="bg-white rounded-[24px] shadow-[0_6px_22px_rgba(89,155,56,0.06)] border border-[#e4eedb] p-4 flex flex-col">
-          <span className="text-sm font-bold text-slate-800 ml-1">Recent</span>
+        <div ref={recentSectionRef} className="scroll-mt-4 bg-white rounded-[24px] shadow-[0_6px_22px_rgba(89,155,56,0.06)] border border-[#e4eedb] p-4 flex flex-col">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-sm font-bold text-slate-800 ml-1">Recent</span>
+            <div className="flex items-center gap-1" role="group" aria-label="Filter recent scans by health status">
+              {(['all', 'healthy', 'unhealthy'] as const).map((filter) => (
+                <button
+                  key={filter}
+                  type="button"
+                  onClick={() => setRecentFilter(filter)}
+                  aria-pressed={recentFilter === filter}
+                  className={`rounded-full px-2.5 py-1 text-[10px] font-bold capitalize transition focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#599b38] ${recentFilter === filter ? 'bg-[#599b38] text-white' : 'bg-[#f3f6f1] text-slate-600 hover:bg-[#e9f1e3]'}`}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
+          </div>
           
           {/* Green Table Headers row matching screenshot perfectly */}
           <div className="mt-3 mx-0.5 rounded-xl bg-[#eef5e9] py-2 px-5 flex items-center justify-between text-[11px] font-bold text-[#456d2f] select-none">
-            <span className="w-1/3">Food</span>
+              <span className="w-1/3">Food · Status</span>
             <span className="w-1/3 text-center">est. kcal/100g</span>
             <span className="w-1/3 text-right">Date</span>
           </div>
@@ -150,7 +179,10 @@ export default function DashboardScreen({ user, history, onNavigate, onSelectSca
                     }}
                     className="w-full py-3 px-5 flex items-center justify-between text-xs text-slate-705 font-bold cursor-pointer hover:bg-slate-50 rounded-xl transition"
                   >
-                    <span className="w-1/3 text-left text-[#111111] font-bold truncate">{scan.name}</span>
+                    <span className="w-1/3 flex items-center gap-1.5 text-left text-[#111111] font-bold truncate">
+                      <span aria-label={scan.classification} title={scan.classification} className={`h-2 w-2 shrink-0 rounded-full ${scan.classification === 'Healthy' ? 'bg-emerald-500' : scan.classification === 'Unhealthy' ? 'bg-rose-500' : 'bg-amber-400'}`} />
+                      <span className="truncate">{scan.name}</span>
+                    </span>
                     <span className="w-1/3 text-center text-slate-650">{Math.round(scan.macros.calories)}</span>
                     <span className="w-1/3 text-right text-slate-400 font-semibold truncate">{formatScanDate(scan.time)}</span>
                   </button>
@@ -158,7 +190,7 @@ export default function DashboardScreen({ user, history, onNavigate, onSelectSca
               ))
             ) : (
               <div className="py-6 px-5 text-center text-xs font-semibold text-slate-400">
-                No analysis history yet.
+                {history.length === 0 ? 'No analysis history yet.' : `No ${recentFilter} scans found.`}
               </div>
             )}
             </div>

@@ -36,6 +36,7 @@ export interface FoodAnalysis {
   pros: string[];
   cons: string[];
   warnings: string[];
+  allergyMatches?: string[];
   suggestions: string[];
   explanation: string;
 }
