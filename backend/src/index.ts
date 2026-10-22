@@ -487,7 +487,7 @@ app.post("/api/v1/analyze-food", async (c) => {
       and user_id = ${user.id}
     limit 1
   `, sql`
-    select food_goal, allergies from user_profiles where user_id = ${user.id} limit 1
+    select food_goal, allergies, health_conditions from user_profiles where user_id = ${user.id} limit 1
   `]);
 
   if (imageRows.length === 0) {
@@ -521,13 +521,16 @@ app.post("/api/v1/analyze-food", async (c) => {
   try {
     const profile = profileRows[0];
     const foodGoal = profile?.food_goal ?? "Eat balanced";
-    const allergies = Array.isArray(profile?.allergies) ? profile.allergies.filter((item): item is string => typeof item === "string") : [];
+    const healthConditions = Array.isArray(profile?.health_conditions) ? profile.health_conditions.filter((item): item is string => typeof item === "string" && item.toLowerCase() !== "none") : [];
+    const allergies = Array.isArray(profile?.allergies)
+      ? profile.allergies.filter((item): item is string => typeof item === "string").map((item) => item === "Milk (cow's milk)" ? "Milk" : item)
+      : [];
     const prediction = await analyzeWithGeminiKeyFallback(
       await storedImage.arrayBuffer(),
       imageRows[0].mime_type,
       geminiApiKeys,
       geminiModel,
-      { foodGoal, allergies },
+      { foodGoal, allergies, healthConditions },
     );
     const modelValidationError = validatePrediction(prediction);
     if (modelValidationError) {
@@ -549,13 +552,19 @@ app.post("/api/v1/analyze-food", async (c) => {
     `;
     const analysisId = crypto.randomUUID();
     const resultId = crypto.randomUUID();
+    const allergyMatches = mergeAllergyMatches(prediction.allergyMatches ?? [], findMatchingAllergies(prediction.foodName, allergies), allergies);
+    const conditionGuidance = getConditionGuidance(prediction.foodName, healthConditions);
     const healthInsights = {
       healthBenefits: prediction.healthBenefits ?? [],
-      warnings: mergeAllergyWarnings(prediction.warnings ?? [], findMatchingAllergies(prediction.foodName, allergies)),
-      suggestions: prediction.suggestions ?? [],
-      explanation: prediction.explanation ?? "",
+      warnings: mergeGuidance(prediction.warnings ?? [], [
+        ...allergyWarning(allergyMatches),
+        ...conditionGuidance.warnings,
+      ]),
+      allergyMatches,
+      suggestions: mergeGuidance(conditionGuidance.suggestions, prediction.suggestions ?? []),
+      explanation: conditionGuidance.explanation || prediction.explanation || "",
       classification: prediction.classification,
-      recommendation: prediction.recommendation ?? "Limit",
+      recommendation: allergyMatches.length > 0 ? "Avoid" : conditionGuidance.recommendation ?? prediction.recommendation ?? "Limit",
     };
 
     await sql`
@@ -577,9 +586,9 @@ app.post("/api/v1/analyze-food", async (c) => {
       success: true, message: "Analysis completed.", data: {
         analysisId, foodName: prediction.foodName, isFood: prediction.isFood, confidence: prediction.confidence,
         nutrition: prediction.nutrition, healthBenefits: healthInsights.healthBenefits,
-        warnings: healthInsights.warnings, suggestions: healthInsights.suggestions,
+        warnings: healthInsights.warnings, allergyMatches: healthInsights.allergyMatches, suggestions: healthInsights.suggestions,
         explanation: healthInsights.explanation, classification: healthInsights.classification,
-        recommendation: findMatchingAllergies(prediction.foodName, allergies).length ? "Avoid" : prediction.recommendation ?? "Limit",
+        recommendation: healthInsights.recommendation,
         imageUrl: imageRows[0].image_url,
       },
     });
@@ -627,6 +636,7 @@ app.get("/api/v1/analysis-history", async (c) => {
       nutrition: row.nutrition_snapshot,
       healthBenefits: row.health_insights?.healthBenefits ?? [],
       warnings: row.health_insights?.warnings ?? [],
+      allergyMatches: row.health_insights?.allergyMatches ?? [],
       suggestions: row.health_insights?.suggestions ?? [],
       explanation: row.health_insights?.explanation ?? "",
       classification: row.health_insights?.classification ?? "Moderate",
@@ -673,6 +683,7 @@ app.get("/api/v1/analysis-history/:analysisId", async (c) => {
       nutrition: row.nutrition_snapshot,
       healthBenefits: insights.healthBenefits ?? [],
       warnings: insights.warnings ?? [],
+      allergyMatches: insights.allergyMatches ?? [],
       suggestions: insights.suggestions ?? [],
       explanation: insights.explanation ?? "",
       classification: insights.classification ?? "Moderate",
@@ -1006,6 +1017,7 @@ type ModelPrediction = {
   };
   healthBenefits?: string[];
   warnings?: string[];
+  allergyMatches?: string[];
   suggestions?: string[];
   explanation?: string;
   classification: "Healthy" | "Moderate" | "Unhealthy";
@@ -1030,11 +1042,12 @@ type GeminiFailure = Error & {
 
 const FOOD_ANALYSIS_INSTRUCTIONS = `Analyze this food image. Identify the primary dish and estimate nutrition for the visible portion. Return only the requested JSON. Nutrition is an estimate, not medical advice. Use confidence from 0 to 1.
 
-If the image does not clearly show food, set isFood to false, foodName to "Not food", and all nutrition values to 0. Set healthBenefits, warnings, and suggestions to empty arrays. Set explanation to "This image does not show food, so nutrition information is unavailable." If it shows food, set isFood to true.
+If the image does not clearly show food, set isFood to false, foodName to "Not food", and all nutrition values to 0. Set healthBenefits, warnings, allergyMatches, and suggestions to empty arrays. Set explanation to "This image does not show food, so nutrition information is unavailable." If it shows food, set isFood to true.
 
 Write the lower guidance for an everyday person with no nutrition knowledge. Do not mention protein, carbohydrates, fats, calories, macros, or nutrition jargon in healthBenefits, warnings, suggestions, or explanation. Explain practical effects in familiar terms (for example, "May keep you full longer", "Quite oily, so keep the portion small", "Add vegetables to balance the meal").
 - healthBenefits: exactly 2 simple, concrete benefits, 3-12 words each.
 - warnings: exactly 2 clear, non-alarming cautions, 3-16 words each.
+- allergyMatches: only user-reported allergens that are clearly visible or explicitly identifiable in the food; use the exact profile label, otherwise an empty array. Never infer hidden ingredients.
 - suggestions: exactly 2 practical actions, 3-12 words each.
 - explanation: one friendly sentence, 8-20 words, giving the main takeaway for this user's goal.
 Avoid medical claims, diagnoses, acronyms, and unexplained terms. Do not promise weight loss or muscle gain; use supportive wording such as "can help support".`;
@@ -1055,6 +1068,7 @@ const GEMINI_RESPONSE_SCHEMA = {
     },
     healthBenefits: { type: "array", description: "Exactly 2 plain-language benefit phrases, 3-7 words each.", items: { type: "string" } },
     warnings: { type: "array", description: "Exactly 2 plain-language caution phrases, 3-9 words each.", items: { type: "string" } },
+    allergyMatches: { type: "array", description: "Exact matching user-reported allergens that are visible or identifiable; empty when none.", items: { type: "string" } },
     suggestions: { type: "array", description: "Exactly 2 short, practical action phrases, 3-8 words each.", items: { type: "string" } },
     explanation: { type: "string", description: "One friendly 8-16 word sentence with the main practical takeaway." },
     classification: { type: "string", enum: ["Healthy", "Moderate", "Unhealthy"] },
@@ -1063,9 +1077,9 @@ const GEMINI_RESPONSE_SCHEMA = {
   required: ["isFood", "foodName", "confidence", "nutrition", "classification", "recommendation"],
 };
 
-async function analyzeWithGemini(image: ArrayBuffer, mimeType: string, apiKey: string, model?: string, profile?: { foodGoal: string; allergies: string[] }): Promise<ModelPrediction> {
+async function analyzeWithGemini(image: ArrayBuffer, mimeType: string, apiKey: string, model?: string, profile?: { foodGoal: string; allergies: string[]; healthConditions: string[] }): Promise<ModelPrediction> {
   const selectedModel = model?.trim() || "gemini-flash-lite-latest";
-  const profileInstructions = profile ? `\n\nUser food goal: ${profile.foodGoal}. Base your recommendation on this goal. For "Lose weight", advise limiting calorie-dense or high-fat foods when appropriate; for "Gain weight", suggest energy-dense nutritious choices when appropriate; for "Eat balanced", consider overall balance. Set recommendation to Eat, Limit, or Avoid, whichever best fits the goal, and explain briefly. User-reported allergies: ${profile.allergies.length ? profile.allergies.join(", ") : "none reported"}. If the identified food or clearly visible ingredients match a reported allergy, set recommendation to Avoid and add a direct warning naming it. Do not assume hidden ingredients that cannot be identified.` : "";
+  const profileInstructions = profile ? `\n\nUser food goal: ${profile.foodGoal}. Base your recommendation on this goal. For "Lose weight", advise limiting calorie-dense or high-fat foods when appropriate; for "Gain weight", suggest energy-dense nutritious choices when appropriate; for "Eat balanced", consider overall balance. User health notes: ${profile.healthConditions.length ? profile.healthConditions.join(", ") : "none reported"}. Use relevant notes in the advice: for diabetes, flag clearly sweet desserts and suggest a small portion or lower-sugar alternative; for heart problems, flag clearly fried/oily/high-saturated-fat foods and suggest less-fried options; for high blood pressure, flag clearly salty foods and suggest lower-salt options. Do not claim a food is medically safe or unsafe, infer ingredients or nutrient amounts not shown, or override a clinician's advice. User-reported allergies: ${profile.allergies.length ? profile.allergies.join(", ") : "none reported"}. If the identified food or clearly visible ingredients match a reported allergy, include the exact profile label in allergyMatches, set recommendation to Avoid and add a direct warning naming it. Do not assume hidden ingredients that cannot be identified. Set recommendation to Eat, Limit, or Avoid based on the combined food goal, health notes, and confirmed allergy matches; explain briefly.` : "";
   const requestBody = JSON.stringify({
     contents: [{ parts: [
       { text: FOOD_ANALYSIS_INSTRUCTIONS + profileInstructions },
@@ -1131,26 +1145,71 @@ function isRetryableGeminiStatus(status: number) {
 }
 
 function findMatchingAllergies(foodName: string, allergies: string[]) {
-  const food = foodName.toLowerCase();
+  const food = ` ${normalizeFoodText(foodName)} `;
   const aliases: Record<string, string[]> = {
-    "Shrimp / Prawns (Chingri)": ["shrimp", "prawn", "chingri"],
-    "Crab (Kakra)": ["crab", "kakra"],
+    "Shrimp / Prawns (Chingri)": ["shrimp", "shrimps", "prawn", "prawns", "chingri"],
+    "Crab (Kakra)": ["crab", "crabs", "kakra"],
     "Fish (Ilish, Tuna, etc.)": ["fish", "ilish", "hilsa", "tuna"],
-    "Eggs (especially egg whites)": ["egg", "omelet", "omelette"],
-    "Milk (cow's milk)": ["milk", "dairy", "cream", "cheese", "yogurt", "curd", "paneer", "butter", "ghee"],
+    "Eggs (especially egg whites)": ["egg", "eggs", "omelet", "omelette"],
+    Milk: ["milk", "dairy", "cream", "cheese", "yogurt", "curd", "paneer", "butter", "ghee"],
     "Peanuts (China Badam)": ["peanut", "groundnut", "chinabadam"],
     "Tree nuts (Cashews, Almonds, Walnuts)": ["cashew", "almond", "walnut", "pistachio", "hazelnut", "tree nut"],
     "Wheat (Atta, Bread, Roti)": ["wheat", "atta", "bread", "roti", "paratha", "flour"],
     "Soybeans (Soy milk, Tofu)": ["soy", "soya", "tofu"],
     "Sesame seeds (Til)": ["sesame", "tahini", "til"],
   };
-  return allergies.filter((allergy) => (aliases[allergy] ?? []).some((alias) => food.includes(alias)));
+  return allergies.filter((allergy) => (aliases[allergy] ?? []).some((alias) => food.includes(` ${normalizeFoodText(alias)} `)));
 }
 
-function mergeAllergyWarnings(warnings: string[], matches: string[]) {
-  if (matches.length === 0) return warnings;
-  const warning = `Possible ${matches.join(", ")} allergen in this food. Avoid it if allergic.`;
-  return [warning, ...warnings.filter((item) => !/allerg/i.test(item))].slice(0, 10);
+function normalizeFoodText(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function mergeAllergyMatches(modelMatches: string[], nameMatches: string[], profileAllergies: string[]) {
+  const allowed = new Map(profileAllergies.map((allergy) => [allergy.toLowerCase(), allergy]));
+  return [...new Set([...nameMatches, ...modelMatches.map((match) => allowed.get(match.toLowerCase())).filter((match): match is string => Boolean(match))])];
+}
+
+function allergyWarning(matches: string[]) {
+  return matches.length ? [`Allergy match: ${matches.join(", ")}. Avoid this food and verify ingredients to prevent exposure.`] : [];
+}
+
+function mergeGuidance(primary: string[], secondary: string[]) {
+  return [...new Set([...primary, ...secondary].map((item) => item.trim()).filter(Boolean))].slice(0, 10);
+}
+
+function getConditionGuidance(foodName: string, conditions: string[]) {
+  const food = normalizeFoodText(foodName);
+  const notes = new Set(conditions.map((condition) => condition.toLowerCase()));
+  const warnings: string[] = [];
+  const suggestions: string[] = [];
+  let recommendation: "Limit" | undefined;
+  let explanation = "";
+
+  const isSweetDessert = /\b(cake|cupcake|pastry|cookie|cookies|biscuit|brownie|donut|doughnut|ice cream|dessert|candy|sweet|gulab jamun|rasgulla|halwa|mishti doi)\b/.test(food);
+  const isFriedOrOily = /\b(fried|deep fried|oily|greasy|fries|french fries|chips|pakora|puri|luchi|samosa|fried chicken|fried rice)\b/.test(food);
+  const isSalty = /\b(salty|salted|chips|crisps|instant noodles|processed meat|bacon|sausage|pickle|pickles)\b/.test(food);
+
+  if (notes.has("diabetes") && isSweetDessert) {
+    warnings.push("Diabetes note: sweet desserts can raise blood sugar.");
+    suggestions.push("Avoid it when possible; otherwise choose a small serving.");
+    recommendation = "Limit";
+    explanation = "Because you noted diabetes, avoid this sweet dessert when possible or keep it small and follow your meal plan.";
+  }
+  if (notes.has("heart problem") && isFriedOrOily) {
+    warnings.push("Heart health note: fried or oily foods are best limited, especially when often eaten.");
+    suggestions.push("Choose a grilled, baked, or less-oily option.");
+    recommendation = "Limit";
+    explanation = "Because you noted a heart condition, a less-fried option may better fit your usual eating pattern.";
+  }
+  if (notes.has("high blood pressure") && isSalty) {
+    warnings.push("Blood pressure note: salty foods can add a lot of sodium.");
+    suggestions.push("Choose a lower-salt version when available.");
+    recommendation = "Limit";
+    explanation = "Because you noted high blood pressure, consider a lower-salt option and follow your clinician's advice.";
+  }
+
+  return { warnings, suggestions, recommendation, explanation };
 }
 
 function isGeminiQuotaLimit(status: number, responseBody: string) {
@@ -1215,7 +1274,7 @@ function validatePrediction(value: ModelPrediction): string | null {
   }
   if (!["Healthy", "Moderate", "Unhealthy"].includes(value.classification))
     return "classification is invalid";
-  for (const field of ["healthBenefits", "warnings", "suggestions"] as const) {
+  for (const field of ["healthBenefits", "warnings", "allergyMatches", "suggestions"] as const) {
     const items = value[field];
     if (items && (!Array.isArray(items) || items.length > 10 || items.some((item) => typeof item !== "string" || item.length > 300))) return `${field} is invalid`;
   }
@@ -1305,7 +1364,7 @@ async function parseProfileBody(request: Request): Promise<ParseResult<ProfileIn
   if (value.heightCm !== undefined && (!isNumberInRange(value.heightCm, 30, 300))) return { ok: false, message: "heightCm must be a number between 30 and 300." };
   if (value.weightKg !== undefined && (!isNumberInRange(value.weightKg, 2, 500))) return { ok: false, message: "weightKg must be a number between 2 and 500." };
   if (value.healthConditions !== undefined && !isStringArray(value.healthConditions, 20, 100)) return { ok: false, message: "healthConditions must contain at most 20 strings of 100 characters or fewer." };
-  if (value.allergies !== undefined && (!isStringArray(value.allergies, 20, 100) || value.allergies.some((allergy) => !["Shrimp / Prawns (Chingri)", "Crab (Kakra)", "Fish (Ilish, Tuna, etc.)", "Eggs (especially egg whites)", "Milk (cow's milk)", "Peanuts (China Badam)", "Tree nuts (Cashews, Almonds, Walnuts)", "Wheat (Atta, Bread, Roti)", "Soybeans (Soy milk, Tofu)", "Sesame seeds (Til)"].includes(allergy)))) return { ok: false, message: "allergies contains an unsupported allergen." };
+  if (value.allergies !== undefined && (!isStringArray(value.allergies, 20, 100) || value.allergies.some((allergy) => !["Shrimp / Prawns (Chingri)", "Crab (Kakra)", "Fish (Ilish, Tuna, etc.)", "Eggs (especially egg whites)", "Milk", "Peanuts (China Badam)", "Tree nuts (Cashews, Almonds, Walnuts)", "Wheat (Atta, Bread, Roti)", "Soybeans (Soy milk, Tofu)", "Sesame seeds (Til)"].includes(allergy)))) return { ok: false, message: "allergies contains an unsupported allergen." };
   if (value.foodGoal !== undefined && !["Lose weight", "Gain weight", "Eat balanced"].includes(value.foodGoal as string)) return { ok: false, message: "foodGoal must be Lose weight, Gain weight, or Eat balanced." };
   return { ok: true, value: { ...value, foodGoal: (value.foodGoal ?? "Eat balanced") as ProfileInput["foodGoal"] } as ProfileInput };
 }
@@ -1345,7 +1404,7 @@ async function analyzeWithGeminiKeyFallback(
   mimeType: string,
   keys: string[],
   model: string,
-  profile?: { foodGoal: string; allergies: string[] },
+  profile?: { foodGoal: string; allergies: string[]; healthConditions: string[] },
 ) {
   let lastQuotaError: GeminiFailure | null = null;
   for (let keyAttempt = 0; keyAttempt < keys.length; keyAttempt += 1) {

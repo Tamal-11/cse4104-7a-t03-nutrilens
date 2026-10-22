@@ -1,10 +1,18 @@
+// Current application schema. Neon Auth owns its own neon_auth.user table.
+
 Table user_profiles {
   user_id uuid [pk, ref: > neon_auth_users.id]
-  full_name text
+  email text [not null, unique]
+  full_name text [not null]
   age int
   gender text
   height_cm numeric
   weight_kg numeric
+  health_conditions jsonb [not null]
+  allergies jsonb [not null]
+  food_goal text [not null, default: 'Eat balanced']
+  account_status text [not null, default: 'Active']
+  last_active_at timestamptz [not null]
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
 }
@@ -26,17 +34,17 @@ Table nutrition_catalog {
   id uuid [pk]
   food_name text [not null, unique]
   category text
-  serving_size text [not null]
+  serving_size text [not null, default: '100 g']
   calories numeric
   protein numeric
   carbohydrates numeric
   fats numeric
   fiber numeric
-  vitamins jsonb
-  minerals jsonb
-  health_benefits jsonb
-  warnings jsonb
-  source_type text [not null]
+  vitamins jsonb [not null]
+  minerals jsonb [not null]
+  health_benefits jsonb [not null]
+  warnings jsonb [not null]
+  source_type text [not null, default: 'manual']
   created_at timestamptz [not null]
   updated_at timestamptz [not null]
 }
@@ -45,7 +53,7 @@ Table analysis_requests {
   id uuid [pk]
   user_id uuid [not null, ref: > user_profiles.user_id]
   image_id uuid [not null, ref: > food_images.id]
-  status text [not null]
+  status text [not null, default: 'pending']
   requested_at timestamptz [not null]
   completed_at timestamptz
 }
@@ -60,7 +68,14 @@ Table analysis_results {
   health_insights jsonb [not null]
   model_name text
   model_version text
-  is_mock boolean [not null]
+  is_mock boolean [not null, default: false]
+  created_at timestamptz [not null]
+}
+
+Table system_events {
+  id bigint [pk, increment]
+  level text [not null, default: 'INFO']
+  message text [not null]
   created_at timestamptz [not null]
 }
 
@@ -68,4 +83,5 @@ Table neon_auth_users {
   id uuid [pk]
   email text
   name text
+  role text
 }

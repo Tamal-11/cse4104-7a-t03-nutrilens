@@ -1,157 +1,41 @@
-# AI Integration Workflow Diagram
+# Gemini Analysis Workflow
 
-```mermaid
-flowchart TD
-    U[User]
-    F[React Frontend]
-    API[Supabase Edge Function REST API]
-    S[Supabase Storage]
-    DB[Supabase PostgreSQL]
-    P[Image Preprocessing]
-    AI[AI Model Service]
-
-    YOLO[YOLOv8n]
-    MOB[EfficientNet-LC Food-101]
-    SHUF[ShuffleNet]
-    EFF[EfficientNet-Lite]
-
-    R[Food Prediction Result]
-    N[Nutrition Matching System]
-    O[Final Nutrition Response]
-
-    U --> F
-    F --> API
-
-    API --> S
-    API --> DB
-
-    API --> P
-    P --> AI
-
-    AI --> YOLO
-    AI --> MOB
-    AI --> SHUF
-    AI --> EFF
-
-    YOLO --> R
-    MOB --> R
-    SHUF --> R
-    EFF --> R
-
-    R --> N
-    N --> DB
-    N --> O
-
-    O --> F
-    F --> U
-```
-
----
-
-# AI Use Case Diagram
-
-```mermaid
-flowchart LR
-    U[User]
-    API[Backend API]
-    AI[AI Model Service]
-    DB[Nutrition Database]
-
-    UC1((Upload Food Image))
-    UC2((Request Food Analysis))
-    UC3((Preprocess Image))
-    UC4((Detect Food Item))
-    UC5((Generate Nutrition Result))
-    UC6((View Analysis Result))
-    UC7((Save Analysis History))
-
-    U --> UC1
-    U --> UC2
-    U --> UC6
-
-    UC2 --> UC3
-    UC3 --> UC4
-    UC4 --> UC5
-
-    API --> UC3
-    AI --> UC4
-    DB --> UC5
-
-    UC5 --> UC7
-```
-
----
-
-# AI Model Architecture
-
-```mermaid
-flowchart TD
-    I[Food Image Input]
-
-    P[Image Preprocessing]
-
-    FE[Feature Extraction]
-
-    M[Deep Learning Model]
-
-    D[Food Detection / Classification]
-
-    C[Confidence Score]
-
-    R[Prediction Output]
-
-    I --> P
-    P --> FE
-    FE --> M
-    D --> C
-    C --> R
-
-
-    subgraph AI Models
-        Y[YOLOv8n]
-        MV[EfficientNet-LC Food-101]
-        SH[ShuffleNet]
-        EL[EfficientNet-Lite]
-    end
-
-    M --> Y
-    M --> MV
-    M --> SH
-    M --> EL
-
-    Y --> D
-    MV --> D
-    SH --> D
-    EL --> D
-
-```
-
----
-
-# AI Processing Flow
+NutriLens does not run YOLO, EfficientNet, ShuffleNet, or a local Food-101 classifier. Gemini receives the validated uploaded image from the backend and is required to produce a schema-constrained JSON response.
 
 ```mermaid
 sequenceDiagram
     participant User
-    participant Frontend
-    participant Backend
-    participant AI Model
-    participant Database
+    participant UI as React frontend
+    participant API as Hono API
+    participant Store as Private R2
+    participant Gemini
+    participant DB as Neon PostgreSQL
 
-    User->>Frontend: Upload Food Image
-    Frontend->>Backend: Send Image Request
-
-    Backend->>Database: Store Image Metadata
-    Backend->>AI Model: Send Processed Image
-
-    AI Model->>AI Model: Detect / Classify Food
-
-    AI Model->>Backend: Return Prediction + Confidence
-
-    Backend->>Database: Store Analysis Result
-
-    Backend->>Frontend: Return Nutrition Information
-
-    Frontend->>User: Display Result
+    User->>UI: Select food image
+    UI->>API: multipart upload
+    API->>API: Validate type, size, signature, fields
+    API->>Store: Store owned object
+    API-->>UI: imageId
+    UI->>API: Analyze imageId
+    API->>Store: Read owned image
+    API->>Gemini: Image + structured response schema + profile context
+    Gemini-->>API: Food/no-food JSON prediction
+    API->>API: Validate response and merge direct allergy warning
+    API->>DB: Save request and result
+    API-->>UI: Result estimate and guidance
 ```
 
+## Gemini response shape
+
+```mermaid
+flowchart LR
+    Image[Validated image] --> Prompt[Food-analysis instructions]
+    Goal[Food goal] --> Prompt
+    Allergies[Reported allergies] --> Prompt
+    Prompt --> Gemini[Gemini generateContent]
+    Gemini --> Check[Schema and business validation]
+    Check -->|valid| Result[Food name, confidence, nutrition, classification, recommendation, guidance]
+    Check -->|invalid/provider failure| Error[Controlled API error]
+```
+
+For images that do not clearly show food, the requested response sets `isFood` to false, labels the item `Not food`, provides zero nutrition values, and omits health guidance.

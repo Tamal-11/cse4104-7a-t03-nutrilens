@@ -1,22 +1,28 @@
-# Activity Diagram
-
-## Major feature: Upload food image and get result
+# Food Scan Activity Diagram
 
 ```mermaid
 flowchart TD
-    A([Start]) --> B[User logs in with Neon Auth]
-    B --> C[User uploads food image]
-    C --> D[Frontend sends file to Worker upload route]
-    D --> E[Worker checks user session and file]
-    E --> F[Store image in R2]
-    F --> G[Save image row in Neon PostgreSQL]
-    G --> H[Frontend calls analyze route with imageId]
-    H --> I[Create analysis request row]
-    I --> J[Read mock nutrition data]
-    J --> K[Create analysis result row]
-    K --> L[Return result to frontend]
-    L --> M[User sees nutrition and health notes]
-    M --> N[User opens history later]
-    N --> O[Worker reads saved rows]
-    O --> P([End])
+    A([Start]) --> B[User has an active session]
+    B --> C{Profile complete?}
+    C -- No --> D[Open profile and save name, age, height, weight]
+    D --> C
+    C -- Yes --> E[Select JPG, PNG, or WebP image]
+    E --> F[Upload image]
+    F --> G{Type, size, signature, and metadata valid?}
+    G -- No --> H[Return validation message]
+    H --> E
+    G -- Yes --> I[Store private image and metadata]
+    I --> J[Request analysis with image ID]
+    J --> K{Gemini key/model available?}
+    K -- No --> L[Return service unavailable]
+    K -- Yes --> M[Send stored image and profile context to Gemini]
+    M --> N{Structured response valid?}
+    N -- No --> O[Return controlled analysis failure]
+    N -- Yes --> P[Merge direct allergy warning and recommendation]
+    P --> Q[Persist analysis request and result]
+    Q --> R{Food detected?}
+    R -- No --> S[Show no-food state]
+    R -- Yes --> T[Show estimate and guidance]
+    S --> U([End])
+    T --> U
 ```

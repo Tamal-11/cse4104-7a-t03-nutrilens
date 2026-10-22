@@ -23,14 +23,13 @@ const AVAILABLE_CONDITIONS = [
   'Diabetes',
   'High Blood Pressure',
   'Heart Problem',
-  'Milk Allergy',
 ];
 const AVAILABLE_ALLERGIES = [
   'Shrimp / Prawns (Chingri)',
   'Crab (Kakra)',
   'Fish (Ilish, Tuna, etc.)',
   'Eggs (especially egg whites)',
-  "Milk (cow's milk)",
+  'Milk',
   'Peanuts (China Badam)',
   'Tree nuts (Cashews, Almonds, Walnuts)',
   'Wheat (Atta, Bread, Roti)',
@@ -51,8 +50,8 @@ export default function ProfileScreen({ user, onUpdateUser, onNavigate, onSignOu
   const [weight, setWeight] = useState(String(user.weight || ''));
   
   const [foodGoal, setFoodGoal] = useState<FoodGoal>(user.foodGoal || 'Eat balanced');
-  const [selectedConditions, setSelectedConditions] = useState<string[]>(user.healthConditions);
-  const [selectedAllergies, setSelectedAllergies] = useState<string[]>(user.allergies);
+  const [selectedConditions, setSelectedConditions] = useState<string[]>(user.healthConditions.filter((condition) => condition !== 'Milk Allergy'));
+  const [selectedAllergies, setSelectedAllergies] = useState<string[]>(user.allergies.map((allergy) => allergy === "Milk (cow's milk)" ? 'Milk' : allergy));
   const [showSavedToast, setShowSavedToast] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showInstallHelp, setShowInstallHelp] = useState(false);

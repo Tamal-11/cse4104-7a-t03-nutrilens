@@ -1,0 +1,1 @@
+NutriLens turns a meal photo into a clear nutrition estimate, useful cautions, and goal-aware guidance. Snap a meal, know the deal.

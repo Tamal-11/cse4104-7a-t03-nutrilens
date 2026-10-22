@@ -1,17 +1,19 @@
-# NutriLens Backend
+# NutriLens backend
 
-NutriLens uses a Hono backend. Production runs as a Cloudflare Worker with Neon PostgreSQL, Neon Auth, and Cloudflare R2. Local demo mode runs with Node.js and local storage.
+The production API is a Hono application deployed as the `nutrilens-api` Cloudflare Worker. It proxies Neon Auth, stores app data in Neon PostgreSQL, stores uploaded images in private Cloudflare R2, and calls Gemini for food analysis. `scripts/local-server.mjs` supplies a compatible local-demo implementation.
 
-## Stack
+## Routes
 
-| Part | Tool |
-|---|---|
-| API | Hono |
-| Production runtime | Cloudflare Workers |
-| Database | Neon PostgreSQL |
-| Authentication | Neon Auth |
-| Image storage | Cloudflare R2 |
-| AI analysis | Gemini vision API |
+`/`, `/health`, and `/help` are public. Authentication is exposed under `/api/auth/*`; application routes are under `/api/v1/*` and require the session cookie. The Worker has interactive endpoint metadata at `/help/<path>?method=<METHOD>`.
+
+Implemented application areas:
+
+- profile read/update and profile-completion gate;
+- secure food upload, authenticated private image reads, analysis, and history;
+- catalog nutrition and health-insight lookups; and
+- administrator overview, upload review, user-status changes, and Gemini settings.
+
+The complete request/response contract is in [../documentation/api_design.md](../documentation/api_design.md).
 
 ## Local development
 
@@ -22,82 +24,46 @@ pnpm run setup
 pnpm run dev
 ```
 
-Local services:
+The full local demo runs at `http://localhost:8787`. It uses local files and memory but still calls Gemini when a key is configured. See [../RUN_LOCAL.md](../RUN_LOCAL.md).
 
-```text
-Frontend   http://localhost:3000
-Backend    http://localhost:8787
+To run the Worker development server against configured Cloudflare/Neon resources instead:
+
+```bash
+pnpm --filter nutrilens-backend dev
 ```
 
-The local backend uses demo authentication and in-memory records. Production authentication and storage are separate.
+## Production configuration
 
-## Production environment
-
-Production configuration includes:
+Set these Worker secrets:
 
 ```text
 DATABASE_URL
 NEON_AUTH_URL
-ALLOWED_ORIGINS
-GEMINI_API_KEY
-GEMINI_MODEL
-MAX_IMAGE_UPLOAD_BYTES
+GEMINI_API_KEY          # optional fallback
 ```
 
-Admin access comes from the authenticated Neon Auth user's `role` field: `admin` grants access; every other role is treated as a regular user. The admin account table reads roles from `neon_auth.user`.
-
-Cloudflare R2 is bound as `FOOD_IMAGES` in `backend/wrangler.toml`.
-
-Store secrets with Wrangler from the `backend` directory, for example:
+`backend/wrangler.toml` declares the `FOOD_IMAGES` R2 binding, `GEMINI_SETTINGS_KV` binding, origin allowlist, and rate-limit bindings. Optional variables are `GEMINI_MODEL`, `MAX_IMAGE_UPLOAD_BYTES` (8 MiB default), and `R2_PUBLIC_BASE_URL`. Keep `R2_PUBLIC_BASE_URL` unset to preserve authenticated private image delivery.
 
 ```bash
 cd backend
-npx wrangler secret put DATABASE_URL
-npx wrangler secret put NEON_AUTH_URL
-npx wrangler secret put GEMINI_API_KEY
+pnpm exec wrangler secret put DATABASE_URL
+pnpm exec wrangler secret put NEON_AUTH_URL
 ```
 
-Run migrations from the repository root:
+From the repository root:
 
 ```bash
 pnpm run db:migrate
-```
-
-Deploy from the repository root:
-
-```bash
+pnpm run typecheck
 pnpm run deploy
 ```
 
-## Security controls
+## Security behavior
 
-The production Worker includes:
-
-- allowlisted credentialed CORS using `ALLOWED_ORIGINS`;
-- request IDs and a generic unhandled-error response;
-- Cloudflare rate limits for auth and protected API routes;
-- strict profile and request-body validation;
-- UUID validation for protected resource IDs;
-- image MIME, file-size, and file-signature checks;
-- user ownership checks for private images and analysis history;
-- server-side admin authorization; and
-- AI response validation before persistence.
-
-Gemini is called only by the backend; never add `GEMINI_API_KEY` to frontend environment variables.
-The admin AI settings endpoint can save a pool of up to 20 Gemini keys in `GEMINI_SETTINGS_KV`; analysis requests rotate through the pool in order. `GEMINI_API_KEY` remains a one-key fallback for environments that do not configure a pool.
-
-## Main routes
-
-```text
-/api/auth/*
-/api/v1/profile
-/api/v1/upload-food-image
-/api/v1/analyze-food
-/api/v1/analysis-history
-/api/v1/analysis-history/:analysisId
-/api/v1/nutrition-lookup
-/api/v1/health-insights
-/api/v1/admin/*
-```
-
-Do not commit real `.env` files, database credentials, or API keys.
+- Sessions, roles, and passwords are handled through Neon Auth; role `admin` is required for administrative routes.
+- CORS is credentialed and origin-allowlisted.
+- Auth-changing routes and protected API routes have separate Worker rate limits.
+- Uploads accept only JPEG, PNG, and WebP files that pass type, size, and signature checks.
+- Images, scan history, and analysis records are ownership-scoped.
+- Gemini responses are schema-validated before persistence; model failures return controlled errors.
+- Request IDs are included in unhandled-error responses for diagnostics.

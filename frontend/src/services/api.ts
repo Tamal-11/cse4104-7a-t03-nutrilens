@@ -58,6 +58,7 @@ type AnalysisResponse = {
   };
   healthBenefits?: string[];
   warnings?: string[];
+  allergyMatches?: string[];
   suggestions?: string[];
   explanation?: string;
   classification?: 'Healthy' | 'Moderate' | 'Unhealthy';
@@ -141,7 +142,7 @@ export function mapProfile(profile: ProfileResponse): UserProfile {
     height: profile.heightCm ?? 0,
     weight: profile.weightKg ?? 0,
     healthConditions: profile.healthConditions,
-    allergies: profile.allergies ?? [],
+    allergies: (profile.allergies ?? []).map(normalizeAllergyLabel),
     foodGoal: profile.foodGoal || 'Eat balanced',
     isAdmin: profile.isAdmin,
   };
@@ -151,6 +152,7 @@ export function mapAnalysis(item: AnalysisResponse): FoodAnalysis {
   const nutrition = item.nutrition ?? {
     calories: 0, protein: 0, carbohydrates: 0, fats: 0, fiber: 0,
   };
+  const warnings = (item.warnings || []).map((warning) => warning.replaceAll("Milk (cow's milk)", 'Milk'));
   return {
     id: item.analysisId,
     name: item.foodName,
@@ -169,9 +171,14 @@ export function mapAnalysis(item: AnalysisResponse): FoodAnalysis {
     },
     servingSize: nutrition.servingSize || '100 g estimated edible portion',
     pros: item.healthBenefits || [],
-    cons: item.warnings || [],
-    warnings: item.warnings || [],
+    cons: warnings,
+    warnings,
+    allergyMatches: (item.allergyMatches || []).map(normalizeAllergyLabel),
     suggestions: item.suggestions || [],
     explanation: item.explanation || `${item.foodName} was identified with ${Math.round(item.confidence * 100)}% confidence.`,
   };
+}
+
+function normalizeAllergyLabel(allergy: string) {
+  return allergy === "Milk (cow's milk)" ? 'Milk' : allergy;
 }

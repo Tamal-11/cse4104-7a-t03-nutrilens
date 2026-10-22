@@ -2,36 +2,34 @@
 
 ```mermaid
 flowchart LR
-    U[User]
-    A[Admin]
-    M[Mock Analysis Service]
-    AI[Future AI Model]
+    User[Authenticated user]
+    Admin[Administrator]
+    Gemini[Gemini service]
 
-    UC1((Register))
-    UC2((Login))
-    UC3((View Profile))
-    UC4((Update Profile))
-    UC5((Upload Food Image))
-    UC6((Request Food Analysis))
-    UC7((View Nutrition Result))
-    UC8((View Analysis History))
-    UC9((Manage Mock Nutrition Data))
-    UC10((Review Uploaded Images))
-    UC11((Predict Food From Image))
+    Profile((Manage profile))
+    Upload((Upload validated food image))
+    Analyze((Request food analysis))
+    Result((View food/no-food result))
+    History((Review own history))
+    Image((Read own private image))
+    Overview((Review users and system overview))
+    UploadReview((Review uploaded images))
+    Accounts((Change account status))
+    Settings((Manage Gemini keys/model))
 
-    U --> UC1
-    U --> UC2
-    U --> UC3
-    U --> UC4
-    U --> UC5
-    U --> UC6
-    U --> UC7
-    U --> UC8
+    User --> Profile
+    User --> Upload
+    User --> Analyze
+    User --> Result
+    User --> History
+    User --> Image
 
-    A --> UC9
-    A --> UC10
+    Analyze --> Gemini
 
-    UC6 --> UC11
-    M --> UC11
-    AI -. future .-> UC11
+    Admin --> Overview
+    Admin --> UploadReview
+    Admin --> Accounts
+    Admin --> Settings
 ```
+
+All user image, history, and result operations are scoped to the active account. Administrative operations require the authenticated Neon role to be `admin`.

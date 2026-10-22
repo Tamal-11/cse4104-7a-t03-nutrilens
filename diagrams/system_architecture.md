@@ -2,40 +2,27 @@
 
 ```mermaid
 flowchart TD
-    A[User on Web App] --> B[React Frontend]
-    B --> C[Neon Auth]
-    B --> D[Cloudflare Worker API]
-    D --> E[Neon PostgreSQL]
-    D --> F[Cloudflare R2]
-    D --> G[Mock Analysis Layer]
-    G -. future .-> H[AI Model Service]
+    User[User browser] --> Frontend[React + Vite frontend]
+    Frontend -->|credentialed requests| API[Hono API: Cloudflare Worker]
+    API --> Auth[Neon Auth]
+    API --> DB[(Neon PostgreSQL)]
+    API --> R2[(Private R2: food-images)]
+    API --> Gemini[Gemini generateContent API]
+    Admin[Administrator] -->|protected admin UI| Frontend
+    API --> KV[KV: Gemini key pool and model]
 
-    subgraph Frontend
-      B
-    end
-
-    subgraph Managed Auth
-      C
-    end
-
-    subgraph App Backend
-      D
-      E
-      F
-    end
-
-    subgraph AI
-      G
-      H
+    subgraph Local development
+        LocalUI[Same React frontend] --> LocalAPI[Node/Hono local demo]
+        LocalAPI --> Files[Ignored local files]
+        LocalAPI --> LocalGemini[Gemini when configured]
     end
 ```
 
-## User flow
+## Runtime responsibilities
 
-1. User signs up or logs in with Neon Auth
-2. Frontend keeps session
-3. User uploads food image
-4. Worker stores file in R2 and metadata in Neon
-5. Frontend asks for analysis using image id
-6. Worker returns mock nutrition result now
-7. Future version will call AI model before final response
+- The frontend handles interaction, session restoration, upload selection, and result presentation.
+- The Worker is the public trust boundary: it proxies auth, validates requests, scopes data to the user, and controls AI/image access.
+- Neon holds relational profile, metadata, request, result, and system-event data.
+- R2 holds image bytes privately; the API owns access checks.
+- Gemini receives a server-side image request and returns structured analysis JSON.
+- KV stores administrator-managed keys/model; a Worker secret can provide a fallback key.
