@@ -45,7 +45,7 @@ export default function RegisterScreen({ onNavigate, onRegisterSuccess }: Regist
       const result = await api.signUp(name, email, password);
       await onRegisterSuccess({
         name,
-        email: result.user.email,
+        email: result.user?.email || email,
         age: 0,
         gender: 'Other',
         height: 0,
@@ -54,7 +54,7 @@ export default function RegisterScreen({ onNavigate, onRegisterSuccess }: Regist
         allergies: [],
         foodGoal: 'Eat balanced',
       });
-      onNavigate('ai');
+      onNavigate('profile');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Unable to create the account.');
     } finally {
