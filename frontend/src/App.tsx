@@ -140,17 +140,25 @@ export default function App() {
     setShowInstallPrompt(true);
   };
 
-  const handleRegisterSuccess = async () => {
-    const loadedUser = await loadAccountData();
+  const handleRegisterSuccess = async (newUser: UserProfile) => {
+    // A successful sign-up is itself the auth-provider confirmation. Set the
+    // signed-in state before loading protected profile data so a transient
+    // profile/history request cannot send the user back through registration.
     authenticatedRef.current = true;
-    isAdminRef.current = Boolean(loadedUser.isAdmin);
+    isAdminRef.current = false;
     setIsAuthenticated(true);
-    if (!isProfileComplete(loadedUser)) {
-      setProfileGateNotice('Complete your display name, age, height, and weight before scanning food.');
-      window.history.replaceState({}, '', SCREEN_PATHS.profile);
-      setCurrentScreen('profile');
-    }
+    profileCompleteRef.current = false;
+    setCurrentUser(newUser);
+    window.history.replaceState({}, '', SCREEN_PATHS.profile);
+    setCurrentScreen('profile');
+    setProfileGateNotice('Complete your display name, age, height, and weight before scanning food.');
     setShowInstallPrompt(true);
+
+    try {
+      await loadAccountData();
+    } catch (error) {
+      console.error('[NutriLens] Could not load the new account profile.', error);
+    }
   };
 
   const handleUpdateUserProfile = (updatedProfile: UserProfile) => {
